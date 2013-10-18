@@ -211,7 +211,8 @@ bool pgn_next_move(pgn_t * pgn, char string[], int size) {
          // move must be a symbol
 
          if (pgn->token_type != TOKEN_SYMBOL) {
-            my_fatal("pgn_next_move(): malformed move at line %d, column %d\n",pgn->token_line,pgn->token_column);
+            my_log("pgn_next_move(): malformed move at line %d, column %d\n",pgn->token_line,pgn->token_column);
+            continue;
          }
 
          // store move for later use
@@ -271,7 +272,7 @@ static void pgn_token_read(pgn_t * pgn) {
    // read a new token
 
    pgn_read_token(pgn);
-   if (pgn->token_type == TOKEN_ERROR) my_fatal("pgn_token_read(): lexical error at line %d, column %d\n",pgn->char_line,pgn->char_column);
+   if (pgn->token_type == TOKEN_ERROR) my_log("pgn_token_read(): lexical error at line %d, column %d\n",pgn->char_line,pgn->char_column);
 
    if (DispToken) printf("< L%d C%d \"%s\" (%03X)\n",pgn->token_line,pgn->token_column,pgn->token_string,pgn->token_type);
 }
