@@ -19,7 +19,7 @@ clean:
 
 CXX       = g++
 CXXFLAGS  = -pipe
-LDFLAGS   = -lm
+LDFLAGS   = -lm -lleveldb
 
 # C++
 
@@ -32,7 +32,7 @@ CXXFLAGS += -fomit-frame-pointer
 
 # strip
 
-LDFLAGS  += -s
+#LDFLAGS  += -s
 
 # dependencies
 
