@@ -49,6 +49,7 @@ static int MinGame;
 static double MinScore;
 static bool RemoveWhite, RemoveBlack;
 static bool Uniform;
+static bool Useleveldb;
 
 static book_t Book[1];
 
@@ -94,6 +95,7 @@ void book_make(int argc, char * argv[]) {
    RemoveWhite = false;
    RemoveBlack = false;
    Uniform = false;
+   Useleveldb = false;
 
    for (i = 1; i < argc; i++) {
 
@@ -155,6 +157,9 @@ void book_make(int argc, char * argv[]) {
 
          Uniform = true;
 
+      } else if (my_string_equal(argv[i],"-leveldb")) {
+
+          Useleveldb = true;
       } else {
 
          my_fatal("book_make(): unknown option \"%s\"\n",argv[i]);
