@@ -7,6 +7,8 @@
 // includes
 
 #include "util.h"
+#include "leveldb/db.h"
+
 
 // functions
 

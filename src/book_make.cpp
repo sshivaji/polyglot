@@ -49,19 +49,24 @@ static int MinGame;
 static double MinScore;
 static bool RemoveWhite, RemoveBlack;
 static bool Uniform;
-static bool Useleveldb;
+
+static enum STORAGE
+  {
+    POLYGLOT, LEVELDB
+  } Storage;
 
 static book_t Book[1];
+static leveldb::DB *BookLevelDb;
 
 // prototypes
 
-static void   book_clear    ();
-static void   book_insert   (const char file_name[]);
+static void   book_clear    (STORAGE Storage, const char *bin_file);
+static void   book_insert   (STORAGE Storage, const char file_name[]);
 static void   book_filter   ();
 static void   book_sort     ();
 static void   book_save     (const char file_name[]);
 
-static int    find_entry    (const board_t * board, int move);
+static int    find_entry    (STORAGE Storage, const board_t * board, int move);
 static void   resize        ();
 static void   halve_stats   (uint64 key);
 
@@ -95,7 +100,7 @@ void book_make(int argc, char * argv[]) {
    RemoveWhite = false;
    RemoveBlack = false;
    Uniform = false;
-   Useleveldb = false;
+   Storage = POLYGLOT;
 
    for (i = 1; i < argc; i++) {
 
@@ -158,18 +163,17 @@ void book_make(int argc, char * argv[]) {
          Uniform = true;
 
       } else if (my_string_equal(argv[i],"-leveldb")) {
-
-          Useleveldb = true;
+          Storage = LEVELDB;
       } else {
-
          my_fatal("book_make(): unknown option \"%s\"\n",argv[i]);
       }
    }
 
-   book_clear();
+//   string b_file = bin_file;
+   book_clear(Storage, bin_file);
 
    printf("inserting games ...\n");
-   book_insert(pgn_file);
+   book_insert(Storage, pgn_file);
 
    printf("filtering entries ...\n");
    book_filter();
@@ -185,25 +189,32 @@ void book_make(int argc, char * argv[]) {
 
 // book_clear()
 
-static void book_clear() {
+static void book_clear(STORAGE Storage, const char * bin_file) {
 
-   int index;
+  if (Storage == LEVELDB) {
+      leveldb::Options options;
+      options.create_if_missing = true;
+      leveldb::DB::Open(options, bin_file, &BookLevelDb);
+    }
+  else {
+      int index;
 
-   Book->alloc = 1;
-   Book->mask = (Book->alloc * 2) - 1;
+      Book->alloc = 1;
+      Book->mask = (Book->alloc * 2) - 1;
 
-   Book->entry = (entry_t *) my_malloc(Book->alloc*sizeof(entry_t));
-   Book->size = 0;
+      Book->entry = (entry_t *) my_malloc(Book->alloc*sizeof(entry_t));
+      Book->size = 0;
 
-   Book->hash = (sint32 *) my_malloc((Book->alloc*2)*sizeof(sint32));
-   for (index = 0; index < Book->alloc*2; index++) {
-      Book->hash[index] = NIL;
-   }
+      Book->hash = (sint32 *) my_malloc((Book->alloc*2)*sizeof(sint32));
+      for (index = 0; index < Book->alloc*2; index++) {
+          Book->hash[index] = NIL;
+        }
+    }
 }
 
 // book_insert()
 
-static void book_insert(const char file_name[]) {
+static void book_insert(STORAGE Storage, const char file_name[]) {
 
    int game_nb;
    pgn_t pgn[1];
@@ -213,6 +224,7 @@ static void book_insert(const char file_name[]) {
    char string[256];
    int move;
    int pos;
+   leveldb::WriteOptions writeOptions;
 
    ASSERT(file_name!=NULL);
 
@@ -244,17 +256,22 @@ static void book_insert(const char file_name[]) {
             move = move_from_san(string,board);
 
             if (move == MoveNone || !move_is_legal(move,board)) {
-               my_fatal("book_insert(): illegal move \"%s\" at line %d, column %d\n",string,pgn->move_line,pgn->move_column);
+               my_log("book_insert(): illegal move \"%s\" at line %d, column %d\n",string,pgn->move_line,pgn->move_column);
             }
 
-            pos = find_entry(board,move);
+            pos = find_entry(Storage, board,move);
 
-            Book->entry[pos].n++;
-            Book->entry[pos].sum += result+1;
+            if (Storage==POLYGLOT) {
+                Book->entry[pos].n++;
+                Book->entry[pos].sum += result+1;
 
-            if (Book->entry[pos].n >= COUNT_MAX) {
-               halve_stats(board->key);
-            }
+                if (Book->entry[pos].n >= COUNT_MAX) {
+                    halve_stats(board->key);
+                  }
+              }
+            else {
+
+              }
 
             move_do(board,move);
             ply++;
@@ -333,66 +350,68 @@ static void book_save(const char file_name[]) {
 
 // find_entry()
 
-static int find_entry(const board_t * board, int move) {
+static int find_entry(STORAGE Storage, const board_t * board, int move) {
 
-   uint64 key;
-   int index;
-   int pos;
+  uint64 key;
+  int index;
+  int pos;
 
-   ASSERT(board!=NULL);
-   ASSERT(move_is_ok(move));
+  ASSERT(board!=NULL);
+  ASSERT(move_is_ok(move));
 
-   ASSERT(move_is_legal(move,board));
+  ASSERT(move_is_legal(move,board));
 
-   // init
+  // init
 
-   key = board->key;
+  key = board->key;
 
-   // search
+  // search
 
-   for (index = key & Book->mask; (pos=Book->hash[index]) != NIL; index = (index+1) & Book->mask) {
+  if (Storage==POLYGLOT) {
+      for (index = key & Book->mask; (pos=Book->hash[index]) != NIL; index = (index+1) & Book->mask) {
+
+          ASSERT(pos>=0&&pos<Book->size);
+
+          if (Book->entry[pos].key == key && Book->entry[pos].move == move) {
+              return pos; // found
+            }
+        }
+
+      // not found
+
+      ASSERT(Book->size<=Book->alloc);
+
+      if (Book->size == Book->alloc) {
+
+          // allocate more memory
+
+          resize();
+
+          for (index = key & Book->mask; Book->hash[index] != NIL; index = (index+1) & Book->mask)
+            ;
+        }
+
+      // create a new entry
+
+      ASSERT(Book->size<Book->alloc);
+      pos = Book->size++;
+
+      Book->entry[pos].key = key;
+      Book->entry[pos].move = move;
+      Book->entry[pos].n = 0;
+      Book->entry[pos].sum = 0;
+      Book->entry[pos].colour = board->turn;
+
+      // insert into the hash table
+
+      ASSERT(index>=0&&index<Book->alloc*2);
+      ASSERT(Book->hash[index]==NIL);
+      Book->hash[index] = pos;
 
       ASSERT(pos>=0&&pos<Book->size);
+    }
+  return pos;
 
-      if (Book->entry[pos].key == key && Book->entry[pos].move == move) {
-         return pos; // found
-      }
-   }
-
-   // not found
-
-   ASSERT(Book->size<=Book->alloc);
-
-   if (Book->size == Book->alloc) {
-
-      // allocate more memory
-
-      resize();
-
-      for (index = key & Book->mask; Book->hash[index] != NIL; index = (index+1) & Book->mask)
-         ;
-   }
-
-   // create a new entry
-
-   ASSERT(Book->size<Book->alloc);
-   pos = Book->size++;
-
-   Book->entry[pos].key = key;
-   Book->entry[pos].move = move;
-   Book->entry[pos].n = 0;
-   Book->entry[pos].sum = 0;
-   Book->entry[pos].colour = board->turn;
-
-   // insert into the hash table
-
-   ASSERT(index>=0&&index<Book->alloc*2);
-   ASSERT(Book->hash[index]==NIL);
-   Book->hash[index] = pos;
-
-   ASSERT(pos>=0&&pos<Book->size);
-
-   return pos;
 }
 
 // resize()
