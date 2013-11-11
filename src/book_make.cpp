@@ -8,6 +8,11 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <set>
+#include <tr1/unordered_set>
+#include <iostream>
+#include <sstream>
+
 
 #include "board.h"
 #include "book_make.h"
@@ -32,6 +37,7 @@ struct entry_t {
    uint16 n;
    uint16 sum;
    uint16 colour;
+   std::tr1::unordered_set<int> game_ids;
 };
 
 struct book_t {
@@ -60,13 +66,13 @@ static leveldb::DB *BookLevelDb;
 
 // prototypes
 
-static void   book_clear    (STORAGE Storage, const char *bin_file);
-static void   book_insert   (STORAGE Storage, const char file_name[]);
+static void   book_clear    (const char *bin_file);
+static void   book_insert   (const char file_name[]);
 static void   book_filter   ();
 static void   book_sort     ();
-static void   book_save     (const char file_name[]);
+static void   book_save     (const char file_name[], const char file_name[]);
 
-static int    find_entry    (STORAGE Storage, const board_t * board, int move);
+static int    find_entry    (const board_t * board, int move);
 static void   resize        ();
 static void   halve_stats   (uint64 key);
 
@@ -87,12 +93,16 @@ void book_make(int argc, char * argv[]) {
    int i;
    const char * pgn_file;
    const char * bin_file;
+   const char * leveldb_file;
 
    pgn_file = NULL;
    my_string_set(&pgn_file,"book.pgn");
 
    bin_file = NULL;
    my_string_set(&bin_file,"book.bin");
+   
+   leveldb_file = NULL;
+   my_string_set(&leveldb_file,"game_index.db");
 
    MaxPly = 1024;
    MinGame = 3;
@@ -162,18 +172,24 @@ void book_make(int argc, char * argv[]) {
 
          Uniform = true;
 
-      } else if (my_string_equal(argv[i],"-leveldb")) {
-          Storage = LEVELDB;
+      } else if (my_string_equal(argv[i],"-leveldb")) {             
+         i++;
+         if (argv[i] == NULL) my_fatal("book_make(): missing argument leveldb\n");
+
+         my_string_set(&leveldb_file,argv[i]);
+         
+         
+         Storage = LEVELDB;
       } else {
          my_fatal("book_make(): unknown option \"%s\"\n",argv[i]);
       }
    }
 
 //   string b_file = bin_file;
-   book_clear(Storage, bin_file);
+   book_clear(bin_file);
 
    printf("inserting games ...\n");
-   book_insert(Storage, pgn_file);
+   book_insert(pgn_file);
 
    printf("filtering entries ...\n");
    book_filter();
@@ -182,21 +198,34 @@ void book_make(int argc, char * argv[]) {
    book_sort();
 
    printf("saving entries ...\n");
-   book_save(bin_file);
+   if (Storage == LEVELDB) {
+        printf("Saving to leveldb.. \n");
+        book_save(bin_file, leveldb_file);
+   }
+   else {
+       book_save(bin_file, NULL);
+   }
 
    printf("all done!\n");
 }
 
+
+static std::string uint64_to_string( uint64 value ) {
+    std::ostringstream os;
+    os << value;
+    return os.str();
+}
+
 // book_clear()
 
-static void book_clear(STORAGE Storage, const char * bin_file) {
+static void book_clear(const char * bin_file) {
 
-  if (Storage == LEVELDB) {
-      leveldb::Options options;
-      options.create_if_missing = true;
-      leveldb::DB::Open(options, bin_file, &BookLevelDb);
-    }
-  else {
+//  if (Storage == LEVELDB) {
+//      leveldb::Options options;
+//      options.create_if_missing = true;
+//      leveldb::DB::Open(options, bin_file, &BookLevelDb);
+//    }
+//  else {
       int index;
 
       Book->alloc = 1;
@@ -209,12 +238,12 @@ static void book_clear(STORAGE Storage, const char * bin_file) {
       for (index = 0; index < Book->alloc*2; index++) {
           Book->hash[index] = NIL;
         }
-    }
+//    }
 }
 
 // book_insert()
 
-static void book_insert(STORAGE Storage, const char file_name[]) {
+static void book_insert(const char file_name[]) {
 
    int game_nb;
    pgn_t pgn[1];
@@ -235,7 +264,7 @@ static void book_insert(STORAGE Storage, const char file_name[]) {
    // scan loop
 
    pgn_open(pgn,file_name);
-
+   
    while (pgn_next_game(pgn)) {
 
       board_start(board);
@@ -259,19 +288,23 @@ static void book_insert(STORAGE Storage, const char file_name[]) {
                my_log("book_insert(): illegal move \"%s\" at line %d, column %d\n",string,pgn->move_line,pgn->move_column);
             }
 
-            pos = find_entry(Storage, board,move);
+            pos = find_entry(board,move);
 
-            if (Storage==POLYGLOT) {
-                Book->entry[pos].n++;
-                Book->entry[pos].sum += result+1;
+//            if (Storage==POLYGLOT) {
+            Book->entry[pos].n++;
+            Book->entry[pos].sum += result+1;
+            Book->entry[pos].game_ids.insert(game_nb);
 
-                if (Book->entry[pos].n >= COUNT_MAX) {
-                    halve_stats(board->key);
-                  }
+//                int myArray[3] = {1,2,3};
+//                std::vector<int> a;
+//                a.push_back(1);
+//
+//                leveldb::Slice valueSlice = leveldb::Slice( (const char*) a, sizeof(a));
+
+            if (Book->entry[pos].n >= COUNT_MAX) {
+                halve_stats(board->key);
               }
-            else {
-
-              }
+           
 
             move_do(board,move);
             ply++;
@@ -322,35 +355,56 @@ static void book_sort() {
 
 // book_save()
 
-static void book_save(const char file_name[]) {
+static void book_save(const char file_name[], const char leveldb_file[]) {
 
    FILE * file;
    int pos;
 
    ASSERT(file_name!=NULL);
+//   ASSERT(leveldb_file!=NULL);
+   
+   leveldb::WriteOptions writeOptions = leveldb::WriteOptions();
+    if (leveldb_file != NULL) {
+        leveldb::Options options;
+        options.create_if_missing = true;
+        leveldb::Status status = leveldb::DB::Open(options, leveldb_file, &BookLevelDb);
+        assert(status.ok());
+    }
+   
 
    file = fopen(file_name,"wb");
    if (file == NULL) my_fatal("book_save(): can't open file \"%s\" for writing: %s\n",file_name,strerror(errno));
 
    // entry loop
 
-   for (pos = 0; pos < Book->size; pos++) {
+    for (pos = 0; pos < Book->size; pos++) {
 
-      ASSERT(keep_entry(pos));
+        ASSERT(keep_entry(pos));
+        if (leveldb_file != NULL) {
+            std::stringstream game_id_stream;
+            for (std::tr1::unordered_set<int>::iterator it = Book->entry[pos].game_ids.begin(); it != Book->entry[pos].game_ids.end(); ++it) {
+                game_id_stream << *it << ",";
+            }
+            //      std::cout << "Before write position" << "\n";
+            BookLevelDb->Put(writeOptions, uint64_to_string(Book->entry[pos].key), game_id_stream.str());
+            //      std::cout << "After write position" << "\n";
+        }
 
-      write_integer(file,8,Book->entry[pos].key);
-      write_integer(file,2,Book->entry[pos].move);
-      write_integer(file,2,entry_score(&Book->entry[pos]));
-      write_integer(file,2,0);
-      write_integer(file,2,0);
+        write_integer(file, 8, Book->entry[pos].key);
+        write_integer(file, 2, Book->entry[pos].move);
+        write_integer(file, 2, entry_score(&Book->entry[pos]));
+        write_integer(file, 2, 0);
+        write_integer(file, 2, 0);
+    }
+   if (leveldb_file != NULL) {
+        delete BookLevelDb;
    }
-
    fclose(file);
 }
 
 // find_entry()
 
-static int find_entry(STORAGE Storage, const board_t * board, int move) {
+static int find_entry(const board_t * board, int move) {
 
   uint64 key;
   int index;
@@ -367,49 +421,50 @@ static int find_entry(STORAGE Storage, const board_t * board, int move) {
 
   // search
 
-  if (Storage==POLYGLOT) {
-      for (index = key & Book->mask; (pos=Book->hash[index]) != NIL; index = (index+1) & Book->mask) {
+//  if (Storage==POLYGLOT) {
+    for (index = key & Book->mask; (pos=Book->hash[index]) != NIL; index = (index+1) & Book->mask) {
 
-          ASSERT(pos>=0&&pos<Book->size);
+        ASSERT(pos>=0&&pos<Book->size);
 
-          if (Book->entry[pos].key == key && Book->entry[pos].move == move) {
-              return pos; // found
-            }
-        }
+        if (Book->entry[pos].key == key && Book->entry[pos].move == move) {
+            return pos; // found
+          }
+      }
 
-      // not found
+    // not found
 
-      ASSERT(Book->size<=Book->alloc);
+    ASSERT(Book->size<=Book->alloc);
 
-      if (Book->size == Book->alloc) {
+    if (Book->size == Book->alloc) {
 
-          // allocate more memory
+        // allocate more memory
 
-          resize();
+        resize();
 
-          for (index = key & Book->mask; Book->hash[index] != NIL; index = (index+1) & Book->mask)
-            ;
-        }
+        for (index = key & Book->mask; Book->hash[index] != NIL; index = (index+1) & Book->mask)
+          ;
+      }
 
-      // create a new entry
+    // create a new entry
 
-      ASSERT(Book->size<Book->alloc);
-      pos = Book->size++;
+    ASSERT(Book->size<Book->alloc);
+    pos = Book->size++;
 
-      Book->entry[pos].key = key;
-      Book->entry[pos].move = move;
-      Book->entry[pos].n = 0;
-      Book->entry[pos].sum = 0;
-      Book->entry[pos].colour = board->turn;
+    Book->entry[pos].key = key;
+    Book->entry[pos].move = move;
+    Book->entry[pos].n = 0;
+    Book->entry[pos].sum = 0;
+    Book->entry[pos].game_ids = std::tr1::unordered_set<int>();
+    Book->entry[pos].colour = board->turn;
 
-      // insert into the hash table
+    // insert into the hash table
 
-      ASSERT(index>=0&&index<Book->alloc*2);
-      ASSERT(Book->hash[index]==NIL);
-      Book->hash[index] = pos;
+    ASSERT(index>=0&&index<Book->alloc*2);
+    ASSERT(Book->hash[index]==NIL);
+    Book->hash[index] = pos;
 
-      ASSERT(pos>=0&&pos<Book->size);
-    }
+    ASSERT(pos>=0&&pos<Book->size);
+//    }
   return pos;
 
 }

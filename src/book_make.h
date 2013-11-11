@@ -8,6 +8,7 @@
 
 #include "util.h"
 #include "leveldb/db.h"
+#include "leveldb/slice.h"
 
 
 // functions
