@@ -295,12 +295,6 @@ static void book_insert(const char file_name[]) {
             Book->entry[pos].sum += result+1;
             Book->entry[pos].game_ids.insert(game_nb);
 
-//                int myArray[3] = {1,2,3};
-//                std::vector<int> a;
-//                a.push_back(1);
-//
-//                leveldb::Slice valueSlice = leveldb::Slice( (const char*) a, sizeof(a));
-
             if (Book->entry[pos].n >= COUNT_MAX) {
                 halve_stats(board->key);
               }
@@ -361,7 +355,6 @@ static void book_save(const char file_name[], const char leveldb_file[]) {
    int pos;
 
    ASSERT(file_name!=NULL);
-//   ASSERT(leveldb_file!=NULL);
    
    leveldb::WriteOptions writeOptions = leveldb::WriteOptions();
     if (leveldb_file != NULL) {
@@ -382,12 +375,17 @@ static void book_save(const char file_name[], const char leveldb_file[]) {
         ASSERT(keep_entry(pos));
         if (leveldb_file != NULL) {
             std::stringstream game_id_stream;
+            std::string currentValue;
+            leveldb::Status s = BookLevelDb->Get(leveldb::ReadOptions(), uint64_to_string(Book->entry[pos].key), &currentValue);
+            if (s.ok()) {
+                 game_id_stream << currentValue;
+            }
+            
             for (std::tr1::unordered_set<int>::iterator it = Book->entry[pos].game_ids.begin(); it != Book->entry[pos].game_ids.end(); ++it) {
                 game_id_stream << *it << ",";
             }
-            //      std::cout << "Before write position" << "\n";
+            
             BookLevelDb->Put(writeOptions, uint64_to_string(Book->entry[pos].key), game_id_stream.str());
-            //      std::cout << "After write position" << "\n";
         }
 
         write_integer(file, 8, Book->entry[pos].key);
