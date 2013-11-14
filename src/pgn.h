@@ -33,9 +33,20 @@ struct pgn_t {
    int token_column;
    bool token_unread;
    bool token_first;
+   
+   long int last_stream_pos;
 
    char result[PGN_STRING_SIZE];
    char fen[PGN_STRING_SIZE];
+   char white[PGN_STRING_SIZE];
+   char whiteelo[PGN_STRING_SIZE];
+   char black[PGN_STRING_SIZE];
+   char blackelo[PGN_STRING_SIZE];
+   char date[PGN_STRING_SIZE];
+   char event[PGN_STRING_SIZE];
+   char site[PGN_STRING_SIZE];
+   char eco[PGN_STRING_SIZE];
+   
 
    int move_line;
    int move_column;

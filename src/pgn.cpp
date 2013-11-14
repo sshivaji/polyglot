@@ -79,6 +79,7 @@ void pgn_open(pgn_t * pgn, const char file_name[]) {
 
    pgn->move_line = -1; // DEBUG
    pgn->move_column = -1; // DEBUG
+   pgn->last_stream_pos = 0;
 }
 
 // pgn_close()
@@ -102,6 +103,15 @@ bool pgn_next_game(pgn_t * pgn) {
    // init
 
    strcpy(pgn->result,"*");
+   strcpy(pgn->white,"*");
+   strcpy(pgn->whiteelo,"*");
+   strcpy(pgn->black,"*");
+   strcpy(pgn->blackelo,"*");
+   strcpy(pgn->date,"*");
+   strcpy(pgn->event,"*");
+   strcpy(pgn->site,"*");
+   strcpy(pgn->eco,"*");
+   pgn->last_stream_pos = -1;
    strcpy(pgn->fen,"");
 
    // loop
@@ -111,24 +121,28 @@ bool pgn_next_game(pgn_t * pgn) {
       pgn_token_read(pgn);
 
       if (pgn->token_type != '[') break;
+      
+      if (pgn->last_stream_pos == -1) {
+          pgn->last_stream_pos = ftell(pgn->file); 
+        }
 
       // tag
 
       pgn_token_read(pgn);
       if (pgn->token_type != TOKEN_SYMBOL) {
-         my_log("pgn_next_game(): malformed tag at line %d, column %d\n",pgn->token_line,pgn->token_column);
+         my_fatal("pgn_next_game(): malformed tag at line %d, column %d\n",pgn->token_line,pgn->token_column);
       }
       strcpy(name,pgn->token_string);
 
       pgn_token_read(pgn);
       if (pgn->token_type != TOKEN_STRING) {
-         my_log("pgn_next_game(): malformed tag at line %d, column %d\n",pgn->token_line,pgn->token_column);
+         my_fatal("pgn_next_game(): malformed tag at line %d, column %d\n",pgn->token_line,pgn->token_column);
       }
       strcpy(value,pgn->token_string);
 
       pgn_token_read(pgn);
       if (pgn->token_type != ']') {
-         my_log("pgn_next_game(): malformed tag at line %d, column %d\n",pgn->token_line,pgn->token_column);
+         my_fatal("pgn_next_game(): malformed tag at line %d, column %d\n",pgn->token_line,pgn->token_column);
       }
 
       // special tag?
@@ -138,7 +152,24 @@ bool pgn_next_game(pgn_t * pgn) {
          strcpy(pgn->result,value);
       } else if (my_string_equal(name,"FEN")) {
          strcpy(pgn->fen,value);
+      } else if (my_string_equal(name,"White")) {
+         strcpy(pgn->white,value);
+      } else if (my_string_equal(name,"WhiteElo")) {
+         strcpy(pgn->whiteelo,value);
+      } else if (my_string_equal(name,"Black")) {
+         strcpy(pgn->black,value);
+      } else if (my_string_equal(name,"BlackElo")) {
+         strcpy(pgn->blackelo,value);
+      } else if (my_string_equal(name,"Date")) {
+         strcpy(pgn->date,value);
+      } else if (my_string_equal(name,"Event")) {
+         strcpy(pgn->event,value);
+      } else if (my_string_equal(name,"Site")) {
+         strcpy(pgn->site,value);
+      } else if (my_string_equal(name,"ECO")) {
+         strcpy(pgn->eco,value);
       }
+      
    }
 
    if (pgn->token_type == TOKEN_EOF) return false;
@@ -445,8 +476,7 @@ static void pgn_read_token(pgn_t * pgn) {
                // bad escape, ignore
 
                if (pgn->token_length >= PGN_STRING_SIZE-1) {
-                  my_log("pgn_read_token(): string too long at line %d, column %d\n",pgn->char_line,pgn->char_column);
-                  break;
+                  my_fatal("pgn_read_token(): string too long at line %d, column %d\n",pgn->char_line,pgn->char_column);
                }
 
                pgn->token_string[pgn->token_length++] = '\\';
@@ -454,8 +484,7 @@ static void pgn_read_token(pgn_t * pgn) {
          }
 
          if (pgn->token_length >= PGN_STRING_SIZE-1) {
-            my_log("pgn_read_token(): string too long at line %d, column %d\n",pgn->char_line,pgn->char_column);
-            break;
+            my_fatal("pgn_read_token(): string too long at line %d, column %d\n",pgn->char_line,pgn->char_column);
          }
 
          pgn->token_string[pgn->token_length++] = pgn->char_hack;
