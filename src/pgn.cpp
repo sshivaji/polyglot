@@ -118,31 +118,30 @@ bool pgn_next_game(pgn_t * pgn) {
 
    while (true) {
 
+      if (pgn->last_stream_pos == -1) {
+          pgn->last_stream_pos = ftell(pgn->file); 
+        }
       pgn_token_read(pgn);
 
       if (pgn->token_type != '[') break;
       
-      if (pgn->last_stream_pos == -1) {
-          pgn->last_stream_pos = ftell(pgn->file); 
-        }
-
       // tag
 
       pgn_token_read(pgn);
       if (pgn->token_type != TOKEN_SYMBOL) {
-         my_fatal("pgn_next_game(): malformed tag at line %d, column %d\n",pgn->token_line,pgn->token_column);
+         my_log("pgn_next_game(): malformed tag at line %d, column %d\n",pgn->token_line,pgn->token_column);
       }
       strcpy(name,pgn->token_string);
 
       pgn_token_read(pgn);
       if (pgn->token_type != TOKEN_STRING) {
-         my_fatal("pgn_next_game(): malformed tag at line %d, column %d\n",pgn->token_line,pgn->token_column);
+         my_log("pgn_next_game(): malformed tag at line %d, column %d\n",pgn->token_line,pgn->token_column);
       }
       strcpy(value,pgn->token_string);
 
       pgn_token_read(pgn);
       if (pgn->token_type != ']') {
-         my_fatal("pgn_next_game(): malformed tag at line %d, column %d\n",pgn->token_line,pgn->token_column);
+         my_log("pgn_next_game(): malformed tag at line %d, column %d\n",pgn->token_line,pgn->token_column);
       }
 
       // special tag?
@@ -476,7 +475,8 @@ static void pgn_read_token(pgn_t * pgn) {
                // bad escape, ignore
 
                if (pgn->token_length >= PGN_STRING_SIZE-1) {
-                  my_fatal("pgn_read_token(): string too long at line %d, column %d\n",pgn->char_line,pgn->char_column);
+                  my_log("pgn_read_token(): string too long at line %d, column %d\n",pgn->char_line,pgn->char_column);
+                  break;
                }
 
                pgn->token_string[pgn->token_length++] = '\\';
@@ -484,7 +484,8 @@ static void pgn_read_token(pgn_t * pgn) {
          }
 
          if (pgn->token_length >= PGN_STRING_SIZE-1) {
-            my_fatal("pgn_read_token(): string too long at line %d, column %d\n",pgn->char_line,pgn->char_column);
+            my_log("pgn_read_token(): string too long at line %d, column %d\n",pgn->char_line,pgn->char_column);
+            break;
          }
 
          pgn->token_string[pgn->token_length++] = pgn->char_hack;
