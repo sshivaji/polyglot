@@ -216,11 +216,24 @@ void book_make(int argc, char * argv[]) {
    printf("all done!\n");
 }
 
-static std::string chars_to_string(const char* a, int i, const char* b) {
+static std::string game_info_to_string(const char* a, int i, const char* b) {
     std::ostringstream os;
     os << a << i << b;
     return os.str();
  }
+
+static std::string char_to_string(const char* a) {
+    std::ostringstream os;
+    os << a;
+    return os.str();
+ }
+
+static std::string int_to_string(int i) {
+    std::ostringstream os;
+    os << i;
+    return os.str();
+ }
+
 
 static std::string uint64_to_string( uint64 value ) {
     std::ostringstream os;
@@ -301,16 +314,18 @@ static void book_insert(const char file_name[], const char leveldb_file_name[]) 
       
     if (leveldb_file_name!=NULL) {
 
-        db->Put(writeOptions, chars_to_string("game_",game_nb,"_White"), pgn->white);
-        db->Put(writeOptions, chars_to_string("game_",game_nb,"_WhiteElo"), pgn->whiteelo);
-        db->Put(writeOptions, chars_to_string("game_",game_nb,"_Black"), pgn->black);
-        db->Put(writeOptions, chars_to_string("game_",game_nb,"_BlackElo"), pgn->blackelo);
-        db->Put(writeOptions, chars_to_string("game_",game_nb,"_Date"), pgn->date);
-        db->Put(writeOptions, chars_to_string("game_",game_nb,"_Event"), pgn->event);
-        db->Put(writeOptions, chars_to_string("game_",game_nb,"_Site"), pgn->site);
-        db->Put(writeOptions, chars_to_string("game_",game_nb,"_ECO"), pgn->eco);
-        db->Put(writeOptions, chars_to_string("game_",game_nb,"_last_pos"), uint64_to_string(pgn->last_stream_pos));
-        db->Put(writeOptions, chars_to_string("game_",game_nb,"_FEN"), pgn->fen);
+        db->Put(writeOptions, game_info_to_string("game_",game_nb,"_White"), pgn->white);
+        db->Put(writeOptions, game_info_to_string("game_",game_nb,"_WhiteElo"), pgn->whiteelo);
+        db->Put(writeOptions, game_info_to_string("game_",game_nb,"_Black"), pgn->black);
+        db->Put(writeOptions, game_info_to_string("game_",game_nb,"_BlackElo"), pgn->blackelo);
+        db->Put(writeOptions, game_info_to_string("game_",game_nb,"_Result"), pgn->result);
+        
+        db->Put(writeOptions, game_info_to_string("game_",game_nb,"_Date"), pgn->date);
+        db->Put(writeOptions, game_info_to_string("game_",game_nb,"_Event"), pgn->event);
+        db->Put(writeOptions, game_info_to_string("game_",game_nb,"_Site"), pgn->site);
+        db->Put(writeOptions, game_info_to_string("game_",game_nb,"_ECO"), pgn->eco);
+        db->Put(writeOptions, game_info_to_string("game_",game_nb,"_last_pos"), uint64_to_string(pgn->last_stream_pos));
+        db->Put(writeOptions, game_info_to_string("game_",game_nb,"_FEN"), pgn->fen);
 //          
     } 
 
@@ -335,7 +350,6 @@ static void book_insert(const char file_name[], const char leveldb_file_name[]) 
                 halve_stats(board->key);
               }
            
-
             move_do(board,move);
             ply++;
             result = -result;
@@ -344,12 +358,16 @@ static void book_insert(const char file_name[], const char leveldb_file_name[]) 
 
       game_nb++;
       if (game_nb % 10000 == 0) printf("%d games ...\n",game_nb);
+      if (leveldb_file_name!=NULL) {
+        db->Put(writeOptions, char_to_string("total_game_count"), int_to_string(game_nb+1));
+        db->Put(writeOptions, char_to_string("pgn_filename"), char_to_string(file_name));
+     }
    }
 
    pgn_close(pgn);
 
-   printf("%d game%s.\n",game_nb,(game_nb>1)?"s":"");
-   printf("%d entries.\n",Book->size);
+   printf("%d game%s.\n", game_nb+1, (game_nb>1)?"s":"");
+   printf("%d entries.\n", Book->size);
    
    if (leveldb_file_name!=NULL) {
        delete db;

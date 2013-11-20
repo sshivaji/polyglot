@@ -79,7 +79,7 @@ void pgn_open(pgn_t * pgn, const char file_name[]) {
 
    pgn->move_line = -1; // DEBUG
    pgn->move_column = -1; // DEBUG
-   pgn->last_stream_pos = 0;
+   pgn->last_stream_pos = -1;
 }
 
 // pgn_close()
@@ -118,12 +118,15 @@ bool pgn_next_game(pgn_t * pgn) {
 
    while (true) {
 
-      if (pgn->last_stream_pos == -1) {
-          pgn->last_stream_pos = ftell(pgn->file); 
-        }
-      pgn_token_read(pgn);
 
+      pgn_token_read(pgn);
+      
       if (pgn->token_type != '[') break;
+      
+      if (pgn->last_stream_pos == -1) {
+          // before '['
+          pgn->last_stream_pos = ftell(pgn->file); 
+       }
       
       // tag
 
