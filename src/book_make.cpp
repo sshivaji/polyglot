@@ -313,19 +313,38 @@ static void book_insert(const char file_name[], const char leveldb_file_name[]) 
       }
       
     if (leveldb_file_name!=NULL) {
-
-        db->Put(writeOptions, game_info_to_string("game_",game_nb,"_White"), pgn->white);
-        db->Put(writeOptions, game_info_to_string("game_",game_nb,"_WhiteElo"), pgn->whiteelo);
-        db->Put(writeOptions, game_info_to_string("game_",game_nb,"_Black"), pgn->black);
-        db->Put(writeOptions, game_info_to_string("game_",game_nb,"_BlackElo"), pgn->blackelo);
-        db->Put(writeOptions, game_info_to_string("game_",game_nb,"_Result"), pgn->result);
         
-        db->Put(writeOptions, game_info_to_string("game_",game_nb,"_Date"), pgn->date);
-        db->Put(writeOptions, game_info_to_string("game_",game_nb,"_Event"), pgn->event);
-        db->Put(writeOptions, game_info_to_string("game_",game_nb,"_Site"), pgn->site);
-        db->Put(writeOptions, game_info_to_string("game_",game_nb,"_ECO"), pgn->eco);
-        db->Put(writeOptions, game_info_to_string("game_",game_nb,"_last_pos"), uint64_to_string(pgn->last_stream_pos));
-        db->Put(writeOptions, game_info_to_string("game_",game_nb,"_FEN"), pgn->fen);
+        std::stringstream game_info;
+//        game_info << "{ ";
+        game_info << pgn->white;
+        game_info << "|"<< pgn->whiteelo;
+        game_info << "|"<< pgn->black;
+        game_info << "|"<< pgn->blackelo;
+        game_info << "|"<< pgn->result;
+        
+        game_info << "|"<< pgn->date;
+        game_info << "|"<< pgn->event;
+        game_info << "|"<< pgn->site;
+        game_info << "|"<< pgn->eco;
+        game_info << "|"<< pgn->last_stream_pos;
+        game_info << "|"<< pgn->fen;
+//        game_info << " }";
+        
+        db->Put(writeOptions, game_info_to_string("game_",game_nb,"_data"), game_info.str());
+
+//        
+//        db->Put(writeOptions, game_info_to_string("game_",game_nb,"_White"), pgn->white);
+//        db->Put(writeOptions, game_info_to_string("game_",game_nb,"_WhiteElo"), pgn->whiteelo);
+//        db->Put(writeOptions, game_info_to_string("game_",game_nb,"_Black"), pgn->black);
+//        db->Put(writeOptions, game_info_to_string("game_",game_nb,"_BlackElo"), pgn->blackelo);
+//        db->Put(writeOptions, game_info_to_string("game_",game_nb,"_Result"), pgn->result);
+//        
+//        db->Put(writeOptions, game_info_to_string("game_",game_nb,"_Date"), pgn->date);
+//        db->Put(writeOptions, game_info_to_string("game_",game_nb,"_Event"), pgn->event);
+//        db->Put(writeOptions, game_info_to_string("game_",game_nb,"_Site"), pgn->site);
+//        db->Put(writeOptions, game_info_to_string("game_",game_nb,"_ECO"), pgn->eco);
+//        db->Put(writeOptions, game_info_to_string("game_",game_nb,"_last_pos"), uint64_to_string(pgn->last_stream_pos));
+//        db->Put(writeOptions, game_info_to_string("game_",game_nb,"_FEN"), pgn->fen);
 //          
     } 
 
