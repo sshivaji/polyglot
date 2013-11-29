@@ -217,7 +217,7 @@ bool pgn_next_move(pgn_t * pgn, char string[], int size) {
          // close RAV
 
          if (depth == 0) {
-            my_fatal("pgn_next_move(): malformed variation at line %d, column %d\n",pgn->token_line,pgn->token_column);
+            my_log("pgn_next_move(): malformed variation at line %d, column %d\n",pgn->token_line,pgn->token_column);
          }
 
          depth--;
@@ -228,7 +228,7 @@ bool pgn_next_move(pgn_t * pgn, char string[], int size) {
          // game finished
 
          if (depth > 0) {
-            my_fatal("pgn_next_move(): malformed variation at line %d, column %d\n",pgn->token_line,pgn->token_column);
+            my_log("pgn_next_move(): malformed variation at line %d, column %d\n",pgn->token_line,pgn->token_column);
          }
 
          return false;
