@@ -17,7 +17,7 @@ Usage:
 Builds a leveldb game number and header index. To access the indexes:
 
  1. To access the game header index:
-	The "game\_<game\_number>_data" key contains a pipe (|) separated list of values: 
+	The "game\_<game\_number>\_data" key contains a pipe (|) separated list of values: 
   1. White player name 
   1. White player elo 
   1. Black player name 
