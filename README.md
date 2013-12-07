@@ -23,11 +23,11 @@ Builds a leveldb game number and header index. To access the indexes:
   1. Black player name 
   1. Black player elo 
   1. result (1-0, 0-1, 1/2-1/2 etc)
-  1. data
-  1. site
-  1. eco
+  1. Date
+  1. Site
+  1. ECO
   1. last\_stream\_position
-  1. fen
+  1. Start FEN
 	Most of the fields are self-explanatory, the last\_stream\_position key contains the fseek position of the game (similar to the byte position of the game) in the PGN file. This is useful when wanting to quickly retrieve that game. To optimize retrieval, look up the last\_stream\_position of the next game and get all content between the fseeks. Note: The fseek content does not start with the opening "[", one needs to add in an opening "[" after the seek to work with PGN parsers.
 
  2. Position index:
