@@ -110,9 +110,13 @@ bool pgn_next_game(pgn_t * pgn) {
    strcpy(pgn->date,"*");
    strcpy(pgn->event,"*");
    strcpy(pgn->site,"*");
-   strcpy(pgn->eco,"*");
+   strcpy(pgn->eco,"*");   
    pgn->last_stream_pos = -1;
    strcpy(pgn->fen,"");
+   
+   strcpy(pgn->plycount,"*");
+   strcpy(pgn->eventdate,"*");
+   strcpy(pgn->eventtype,"*");
 
    // loop
 
@@ -170,7 +174,14 @@ bool pgn_next_game(pgn_t * pgn) {
          strcpy(pgn->site,value);
       } else if (my_string_equal(name,"ECO")) {
          strcpy(pgn->eco,value);
+      } else if (my_string_equal(name,"PlyCount")) {
+         strcpy(pgn->eco,value);
+      } else if (my_string_equal(name,"EventDate")) {
+         strcpy(pgn->eco,value);
+      } else if (my_string_equal(name,"EventType")) {
+         strcpy(pgn->eco,value);
       }
+      
       
    }
 

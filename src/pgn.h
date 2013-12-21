@@ -47,6 +47,9 @@ struct pgn_t {
    char site[PGN_STRING_SIZE];
    char eco[PGN_STRING_SIZE];
    
+   char plycount[PGN_STRING_SIZE];
+   char eventdate[PGN_STRING_SIZE];
+   char eventtype[PGN_STRING_SIZE];
 
    int move_line;
    int move_column;

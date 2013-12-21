@@ -325,8 +325,11 @@ static void book_insert(const char file_name[], const char leveldb_file_name[]) 
         game_info << "|"<< pgn->last_stream_pos;
         game_info << "|"<< pgn->fen;
         
-        db->Put(writeOptions, game_info_to_string("game_",game_nb,"_data"), game_info.str());
-          
+        game_info << "|"<< pgn->plycount;
+        game_info << "|"<< pgn->eventdate;
+        game_info << "|"<< pgn->eventtype;
+
+        db->Put(writeOptions, game_info_to_string("game_",game_nb,"_data"), game_info.str());          
     } 
 
       while (pgn_next_move(pgn,string,256)) {
