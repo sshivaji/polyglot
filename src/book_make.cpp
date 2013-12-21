@@ -70,7 +70,7 @@ static void   book_clear    (const char *bin_file);
 static void   book_insert   (const char pgn_file_name[], const char level_db_file_name[]);
 static void   book_filter   ();
 static void   book_sort     ();
-static void   book_save     (const char file_name[], const char file_name[]);
+static void   book_save     (const char file_name[], const char leveldb_file[]);
 
 static int    find_entry    (const board_t * board, int move);
 static void   resize        ();
