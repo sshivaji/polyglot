@@ -9,7 +9,6 @@
 #include <cstdlib>
 #include <cstring>
 #include <set>
-#include <tr1/unordered_set>
 #include <iostream>
 #include <sstream>
 
@@ -38,7 +37,7 @@ struct entry_t {
    uint16 n;
    uint16 sum;
    uint16 colour;
-   tr1::unordered_set<int> * game_ids;
+   set<int> * game_ids;
 };
 
 struct book_t {
@@ -443,7 +442,7 @@ static void book_save(const char file_name[], const char leveldb_file[]) {
                  game_id_stream << currentValue;
             }
             
-            for (std::tr1::unordered_set<int>::iterator it = Book->entry[pos].game_ids->begin(); it != Book->entry[pos].game_ids->end(); ++it) {
+            for (set<int>::iterator it = Book->entry[pos].game_ids->begin(); it != Book->entry[pos].game_ids->end(); ++it) {
                 game_id_stream << *it << ",";
             }
             
@@ -514,7 +513,7 @@ static int find_entry(const board_t * board, int move) {
     Book->entry[pos].move = move;
     Book->entry[pos].n = 0;
     Book->entry[pos].sum = 0;
-    Book->entry[pos].game_ids = new tr1::unordered_set<int>();
+    Book->entry[pos].game_ids = new set<int>();
     Book->entry[pos].colour = board->turn;
 
     // insert into the hash table
