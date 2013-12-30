@@ -175,13 +175,12 @@ bool pgn_next_game(pgn_t * pgn) {
       } else if (my_string_equal(name,"ECO")) {
          strcpy(pgn->eco,value);
       } else if (my_string_equal(name,"PlyCount")) {
-         strcpy(pgn->eco,value);
+         strcpy(pgn->plycount,value);
       } else if (my_string_equal(name,"EventDate")) {
-         strcpy(pgn->eco,value);
+         strcpy(pgn->eventdate,value);
       } else if (my_string_equal(name,"EventType")) {
-         strcpy(pgn->eco,value);
+         strcpy(pgn->eventtype,value);
       }
-      
       
    }
 
