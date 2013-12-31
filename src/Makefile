@@ -8,12 +8,23 @@ OBJS = adapter.o attack.o board.o book.o book_make.o book_merge.o colour.o \
        move_do.o move_gen.o move_legal.o option.o parse.o pgn.o piece.o \
        posix.o random.o san.o search.o square.o uci.o util.o
 
+PREFIX = /usr
+BINDIR = $(PREFIX)/bin
+
 # rules
 
 all: $(EXE) .depend
 
 clean:
 	$(RM) *.o .depend
+
+install: all
+	-mkdir -p -m 755 $(BINDIR)
+	-cp $(EXE) $(BINDIR)
+	-strip $(BINDIR)/$(EXE)
+
+uninstall:
+	 $(RM) $(BINDIR)/$(EXE)
 
 # general
 
@@ -44,6 +55,4 @@ $(EXE): $(OBJS)
 
 .depend:
 	$(CXX) -MM $(OBJS:.o=.cpp) > $@
-
-include .depend
-
+#include .depend

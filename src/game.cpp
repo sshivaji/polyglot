@@ -61,7 +61,8 @@ bool game_is_ok(const game_t * game) {
       if (game->key[pos] != board->key) return false;
 
       move = game->move[pos];
-      if (!move_is_legal(move,board));
+      if (!move_is_legal(move,board))
+          ;
 
       move_do(board,move);
    }
