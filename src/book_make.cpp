@@ -206,7 +206,7 @@ void book_make(int argc, char * argv[]) {
    printf("saving entries ...\n");
    if (Storage == LEVELDB) {
         printf("Saving to leveldb.. \n");
-        book_save(bin_file, leveldb_file);
+        book_save(NULL, leveldb_file);
    }
    else {
        book_save(bin_file, NULL);
@@ -410,14 +410,12 @@ static void book_sort() {
 }
 
 // book_save()
-
+// TODO: refactor this to 2 methods
 static void book_save(const char file_name[], const char leveldb_file[]) {
 
    FILE * file;
    int pos;
 
-   ASSERT(file_name!=NULL);
-   
    leveldb::WriteOptions writeOptions = leveldb::WriteOptions();
    leveldb::DB* BookLevelDb;
 
@@ -428,10 +426,10 @@ static void book_save(const char file_name[], const char leveldb_file[]) {
         assert(status.ok());
     }
    
-
-   file = fopen(file_name,"wb");
-   if (file == NULL) my_fatal("book_save(): can't open file \"%s\" for writing: %s\n",file_name,strerror(errno));
-
+   if (file_name != NULL) {
+       file = fopen(file_name,"wb");
+       if (file == NULL) my_fatal("book_save(): can't open file \"%s\" for writing: %s\n",file_name,strerror(errno));
+   }
    // entry loop
 
     for (pos = 0; pos < Book->size; pos++) {
@@ -452,16 +450,22 @@ static void book_save(const char file_name[], const char leveldb_file[]) {
             BookLevelDb->Put(writeOptions, uint64_to_string(Book->entry[pos].key), game_id_stream.str());
         }
 
-        write_integer(file, 8, Book->entry[pos].key);
-        write_integer(file, 2, Book->entry[pos].move);
-        write_integer(file, 2, entry_score(&Book->entry[pos]));
-        write_integer(file, 2, 0);
-        write_integer(file, 2, 0);
+        if (file_name != NULL) {
+
+            write_integer(file, 8, Book->entry[pos].key);
+            write_integer(file, 2, Book->entry[pos].move);
+            write_integer(file, 2, entry_score(&Book->entry[pos]));
+            write_integer(file, 2, 0);
+            write_integer(file, 2, 0);
+        }
     }
    if (leveldb_file != NULL) {
         delete BookLevelDb;
    }
-   fclose(file);
+   
+  if (file_name != NULL) {
+      fclose(file);
+  }
 }
 
 // find_entry()
