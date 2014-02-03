@@ -11,8 +11,13 @@ Compile:
  1. Install leveldb library (for mac OS X, brew install leveldb)
  2. Execute make
 
-Usage:
-./polyglot make-book -pgn \<pgn\_file\> -leveldb \<leveldb\_dir\_name\> -min-game 1
+To build a simple opening book without a game index:
+
+1. ./polyglot make-book -pgn \<pgn\_file\> -min-game 1
+
+To build a game index:
+
+1. ./polyglot make-book -pgn \<pgn\_file\> -leveldb \<leveldb\_dir\_name\> -min-game 1
 
 Builds a leveldb game number and header index. To access the indexes:
 
