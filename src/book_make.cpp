@@ -66,7 +66,7 @@ static book_t Book[1];
 
 // prototypes
 
-static void   book_clear    (const char *bin_file);
+static void   book_clear    ();
 static void   book_insert   (const char pgn_file_name[], const char level_db_file_name[]);
 static void   book_filter   ();
 static void   book_sort     ();
@@ -184,7 +184,7 @@ void book_make(int argc, char * argv[]) {
    }
 
 //   string b_file = bin_file;
-   book_clear(bin_file);
+   book_clear();
 
    printf("inserting games ...\n");
 //   book_insert(pgn_file);
@@ -194,23 +194,24 @@ void book_make(int argc, char * argv[]) {
         book_insert(pgn_file, leveldb_file);
    }
    else {
-       book_insert(pgn_file, NULL);
-   }
+        book_insert(pgn_file, NULL);
+        printf("filtering entries ...\n");
+        book_filter();
 
-   printf("filtering entries ...\n");
-   book_filter();
+        printf("sorting entries ...\n");
+        book_sort();
 
-   printf("sorting entries ...\n");
-   book_sort();
+        printf("saving entries ...\n");
+//        if (Storage == LEVELDB) {
+//                printf("Saving to leveldb.. \n");
+//                book_save(NULL, leveldb_file);
+//        }
+//        else {
+        book_save(bin_file, NULL);
+//        }
+    }
 
-   printf("saving entries ...\n");
-   if (Storage == LEVELDB) {
-        printf("Saving to leveldb.. \n");
-        book_save(NULL, leveldb_file);
-   }
-   else {
-       book_save(bin_file, NULL);
-   }
+   
 
    printf("all done!\n");
 }
@@ -242,7 +243,7 @@ static std::string uint64_to_string( uint64 value ) {
 
 // book_clear()
 
-static void book_clear(const char * bin_file) {
+static void book_clear() {
 
 //  if (Storage == LEVELDB) {
 //      leveldb::Options options;
@@ -278,6 +279,8 @@ static void book_insert(const char file_name[], const char leveldb_file_name[]) 
    int move;
    int pos;
    leveldb::WriteOptions writeOptions;
+   
+
    leveldb::DB* db;
    ASSERT(file_name!=NULL);
 
@@ -287,7 +290,7 @@ static void book_insert(const char file_name[], const char leveldb_file_name[]) 
        leveldb::Options options;
        options.create_if_missing = true;
        leveldb::Status status = leveldb::DB::Open(options, leveldb_file_name, &db);
-       std::cout << leveldb_file_name<<"\n";
+       std::cout << leveldb_file_name<<"\n";        
 //       assert(status.ok());
        
      }
@@ -341,41 +344,113 @@ static void book_insert(const char file_name[], const char leveldb_file_name[]) 
             if (move == MoveNone || !move_is_legal(move,board)) {
                my_log("book_insert(): illegal move \"%s\" at line %d, column %d\n",string,pgn->move_line,pgn->move_column);
             }
+            
+//            if (leveldb_file_name==NULL) {
 
             pos = find_entry(board,move);
 
 //            if (Storage==POLYGLOT) {
-            Book->entry[pos].n++;
-            Book->entry[pos].sum += result+1;
+//            Book->entry[pos].n++;
+//            Book->entry[pos].sum += result+1;
             Book->entry[pos].game_ids->insert(game_nb);
 
-            if (Book->entry[pos].n >= COUNT_MAX) {
-                halve_stats(board->key);
-              }
+//            if (Book->entry[pos].n >= COUNT_MAX) {
+//                halve_stats(board->key);
+//            }
+//            }
+//            else {
+//                std::stringstream game_id_stream;
+//                std::string currentValue;
+//                leveldb::Status s = db->Get(leveldb::ReadOptions(), uint64_to_string(board->key), &currentValue);
+//                if (s.ok()) {
+//                    game_id_stream << currentValue;
+//                }
+//                
+//                game_id_stream << game_nb << ",";
+////                for (set<int>::iterator it = Book->entry[pos].game_ids->begin(); it != Book->entry[pos].game_ids->end(); ++it) {
+////                    game_id_stream << *it << ",";
+////                }
+////                writeBatch.Put(uint64_to_string(board->key), game_id_stream.str());
+////                db->Put(writeOptions, uint64_to_string(board->key), game_id_stream.str());
+//                
+//              }
+
            
             move_do(board,move);
-            ply++;
+            ply++;            
             result = -result;
          }
       }
 
       game_nb++;
-      if (game_nb % 10000 == 0) printf("%d games ...\n",game_nb);
-      if (leveldb_file_name!=NULL) {
-        db->Put(writeOptions, char_to_string("total_game_count"), int_to_string(game_nb+1));
-        db->Put(writeOptions, char_to_string("pgn_filename"), char_to_string(file_name));
-     }
+      if (game_nb % 10000 == 0) { 
+          printf("%d games ...\n",game_nb);
+
+      }
+
+      if (game_nb % 100000 == 0) { 
+          if (leveldb_file_name!=NULL) {
+            printf("\nPutting games into leveldb.."); 
+              
+            for (pos = 0; pos < Book->size; pos++) {
+
+                std::stringstream game_id_stream;
+                std::string currentValue;
+                leveldb::Status s = db->Get(leveldb::ReadOptions(), uint64_to_string(Book->entry[pos].key), &currentValue);
+                if (s.ok()) {
+                    game_id_stream << currentValue;
+                }
+
+                for (set<int>::iterator it = Book->entry[pos].game_ids->begin(); it != Book->entry[pos].game_ids->end(); ++it) {
+                    game_id_stream << *it << ",";
+                }
+
+                db->Put(writeOptions, uint64_to_string(Book->entry[pos].key), game_id_stream.str());
+                delete Book->entry[pos].game_ids;
+        
+            }
+            book_clear();
+
+              
+              
+              
+              
+//            db->Write(leveldb::WriteOptions(), &writeBatch);
+//            writeBatch.Clear();
+          }
+      }
    }
 
    pgn_close(pgn);
 
    printf("%d game%s.\n", game_nb+1, (game_nb>1)?"s":"");
-   printf("%d entries.\n", Book->size);
-   
-   if (leveldb_file_name!=NULL) {
-       delete db;
-       
-     }
+   if (leveldb_file_name==NULL) {
+       printf("%d entries.\n", Book->size);
+   }
+   else {        
+        printf("Iterating thru all book positions..");
+        for (pos = 0; pos < Book->size; pos++) {
+            std::stringstream game_id_stream;
+            std::string currentValue;
+            leveldb::Status s = db->Get(leveldb::ReadOptions(), uint64_to_string(Book->entry[pos].key), &currentValue);
+            if (s.ok()) {
+                game_id_stream << currentValue;
+            }
+
+            for (set<int>::iterator it = Book->entry[pos].game_ids->begin(); it != Book->entry[pos].game_ids->end(); ++it) {
+                game_id_stream << *it << ",";
+            }
+
+            db->Put(writeOptions, uint64_to_string(Book->entry[pos].key), game_id_stream.str());
+            delete Book->entry[pos].game_ids;
+        }
+        book_clear();
+
+
+       db->Put(writeOptions, char_to_string("total_game_count"), int_to_string(game_nb+1));
+       db->Put(writeOptions, char_to_string("pgn_filename"), char_to_string(file_name));
+       delete db;    
+   }
 
    return;
 }
