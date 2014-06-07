@@ -202,13 +202,7 @@ void book_make(int argc, char * argv[]) {
         book_sort();
 
         printf("saving entries ...\n");
-//        if (Storage == LEVELDB) {
-//                printf("Saving to leveldb.. \n");
-//                book_save(NULL, leveldb_file);
-//        }
-//        else {
         book_save(bin_file, NULL);
-//        }
     }
 
    
@@ -349,32 +343,19 @@ static void book_insert(const char file_name[], const char leveldb_file_name[]) 
 
             pos = find_entry(board,move);
 
-//            if (Storage==POLYGLOT) {
-//            Book->entry[pos].n++;
-//            Book->entry[pos].sum += result+1;
-            Book->entry[pos].game_ids->insert(game_nb);
-
+            if (leveldb_file_name!=NULL) {
+                Book->entry[pos].game_ids->insert(game_nb);
+            }
+            else {
+                Book->entry[pos].n++;
+                Book->entry[pos].sum += result+1;
+            
+            }
+            
 //            if (Book->entry[pos].n >= COUNT_MAX) {
+//                
 //                halve_stats(board->key);
 //            }
-//            }
-//            else {
-//                std::stringstream game_id_stream;
-//                std::string currentValue;
-//                leveldb::Status s = db->Get(leveldb::ReadOptions(), uint64_to_string(board->key), &currentValue);
-//                if (s.ok()) {
-//                    game_id_stream << currentValue;
-//                }
-//                
-//                game_id_stream << game_nb << ",";
-////                for (set<int>::iterator it = Book->entry[pos].game_ids->begin(); it != Book->entry[pos].game_ids->end(); ++it) {
-////                    game_id_stream << *it << ",";
-////                }
-////                writeBatch.Put(uint64_to_string(board->key), game_id_stream.str());
-////                db->Put(writeOptions, uint64_to_string(board->key), game_id_stream.str());
-//                
-//              }
-
            
             move_do(board,move);
             ply++;            
@@ -682,7 +663,7 @@ static bool keep_entry(int pos) {
 
    entry = &Book->entry[pos];
 
-   // if (entry->n == 0) return false;
+//   if (entry->n == 0) return false;
    if (entry->n < MinGame) return false;
 
    if (entry->sum == 0) return false;
