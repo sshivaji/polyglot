@@ -33,11 +33,14 @@ static const int NIL = -1;
 
 struct entry_t {
    uint64 key;
-   uint16 move;
-   uint16 n;
-   uint16 sum;
+//   uint16 move;
+   uint32 n;
+   uint32 white_score;
+   uint32 draws;
+   
    uint16 colour;
    set<int> * game_ids;
+   set<uint16> * moves;
 };
 
 struct book_t {
@@ -72,7 +75,7 @@ static void   book_filter   ();
 static void   book_sort     ();
 static void   book_save     (const char file_name[], const char leveldb_file[]);
 
-static int    find_entry    (const board_t * board, int move);
+static int    find_entry    (const board_t * board);
 static void   resize        ();
 static void   halve_stats   (uint64 key);
 
@@ -275,6 +278,7 @@ static void book_insert(const char file_name[], const char leveldb_file_name[]) 
    board_t board[1];
    int ply;
    int result;
+   int draw;
    char string[256];
    int move;
    int pos;
@@ -304,13 +308,16 @@ static void book_insert(const char file_name[], const char leveldb_file_name[]) 
       board_start(board);
       ply = 0;
       result = 0;
+      draw = 0;
 
       if (false) {
       } else if (my_string_equal(pgn->result,"1-0")) {
          result = +1;
       } else if (my_string_equal(pgn->result,"0-1")) {
          result = -1;
-      }
+      } else {
+          draw = 1;
+        }
       
     if (leveldb_file_name!=NULL) {
         
@@ -347,38 +354,18 @@ static void book_insert(const char file_name[], const char leveldb_file_name[]) 
             
 //            if (leveldb_file_name==NULL) {
 
-            pos = find_entry(board,move);
+            pos = find_entry(board);
 
-//            if (Storage==POLYGLOT) {
-//            Book->entry[pos].n++;
-//            Book->entry[pos].sum += result+1;
+            Book->entry[pos].n++;
+            Book->entry[pos].white_score += result;
+            Book->entry[pos].draws += draw;
+            
+            Book->entry[pos].moves->insert(move);
             Book->entry[pos].game_ids->insert(game_nb);
 
-//            if (Book->entry[pos].n >= COUNT_MAX) {
-//                halve_stats(board->key);
-//            }
-//            }
-//            else {
-//                std::stringstream game_id_stream;
-//                std::string currentValue;
-//                leveldb::Status s = db->Get(leveldb::ReadOptions(), uint64_to_string(board->key), &currentValue);
-//                if (s.ok()) {
-//                    game_id_stream << currentValue;
-//                }
-//                
-//                game_id_stream << game_nb << ",";
-////                for (set<int>::iterator it = Book->entry[pos].game_ids->begin(); it != Book->entry[pos].game_ids->end(); ++it) {
-////                    game_id_stream << *it << ",";
-////                }
-////                writeBatch.Put(uint64_to_string(board->key), game_id_stream.str());
-////                db->Put(writeOptions, uint64_to_string(board->key), game_id_stream.str());
-//                
-//              }
-
-           
             move_do(board,move);
             ply++;            
-            result = -result;
+//            result = -result;
          }
       }
 
@@ -388,37 +375,35 @@ static void book_insert(const char file_name[], const char leveldb_file_name[]) 
 
       }
 
-      if (game_nb % 100000 == 0) { 
-          if (leveldb_file_name!=NULL) {
-            printf("\nPutting games into leveldb.."); 
-              
-            for (pos = 0; pos < Book->size; pos++) {
-
-                std::stringstream game_id_stream;
-                std::string currentValue;
-                leveldb::Status s = db->Get(leveldb::ReadOptions(), uint64_to_string(Book->entry[pos].key), &currentValue);
-                if (s.ok()) {
-                    game_id_stream << currentValue;
-                }
-
-                for (set<int>::iterator it = Book->entry[pos].game_ids->begin(); it != Book->entry[pos].game_ids->end(); ++it) {
-                    game_id_stream << *it << ",";
-                }
-
-                db->Put(writeOptions, uint64_to_string(Book->entry[pos].key), game_id_stream.str());
-                delete Book->entry[pos].game_ids;
-        
-            }
-            book_clear();
-
-              
-              
-              
-              
-//            db->Write(leveldb::WriteOptions(), &writeBatch);
-//            writeBatch.Clear();
-          }
-      }
+//      TODO: Make it mem efficient
+      
+//      if (game_nb % 600000 == 0) { 
+//          if (leveldb_file_name!=NULL) {
+//            printf("\nPutting games into leveldb.."); 
+//              
+//            for (pos = 0; pos < Book->size; pos++) {
+//
+//                std::stringstream game_id_stream;
+////                std::string currentValue;
+////                leveldb::Status s = db->Get(leveldb::ReadOptions(), uint64_to_string(Book->entry[pos].key), &currentValue);
+////                if (s.ok()) {
+////                    game_id_stream << currentValue;
+////                }
+//
+//                for (set<int>::iterator it = Book->entry[pos].game_ids->begin(); it != Book->entry[pos].game_ids->end(); ++it) {
+//                    game_id_stream << *it << ",";
+//                }
+//
+//                db->Put(writeOptions, uint64_to_string(Book->entry[pos].key), game_id_stream.str());
+//                
+//                
+//            }
+//            book_clear();
+//              
+////            db->Write(leveldb::WriteOptions(), &writeBatch);
+////            writeBatch.Clear();
+//          }
+//      }
    }
 
    pgn_close(pgn);
@@ -431,18 +416,32 @@ static void book_insert(const char file_name[], const char leveldb_file_name[]) 
         printf("Iterating thru all book positions..");
         for (pos = 0; pos < Book->size; pos++) {
             std::stringstream game_id_stream;
-            std::string currentValue;
-            leveldb::Status s = db->Get(leveldb::ReadOptions(), uint64_to_string(Book->entry[pos].key), &currentValue);
-            if (s.ok()) {
-                game_id_stream << currentValue;
-            }
+            std::stringstream move_stream;
+
+//            std::string currentValue;
+//            leveldb::Status s = db->Get(leveldb::ReadOptions(), uint64_to_string(Book->entry[pos].key), &currentValue);
+//            if (s.ok()) {
+//                game_id_stream << currentValue;
+//            }
 
             for (set<int>::iterator it = Book->entry[pos].game_ids->begin(); it != Book->entry[pos].game_ids->end(); ++it) {
                 game_id_stream << *it << ",";
             }
 
+            for (set<uint16>::iterator it = Book->entry[pos].moves->begin(); it != Book->entry[pos].moves->end(); ++it) {
+                move_stream << *it << ",";
+            }
+            
+            
             db->Put(writeOptions, uint64_to_string(Book->entry[pos].key), game_id_stream.str());
+            db->Put(writeOptions, uint64_to_string(Book->entry[pos].key)+"_moves", move_stream.str());
+            db->Put(writeOptions, uint64_to_string(Book->entry[pos].key)+"_freq",  int_to_string(Book->entry[pos].n));
+            db->Put(writeOptions, uint64_to_string(Book->entry[pos].key)+"_white_score", int_to_string(Book->entry[pos].white_score));
+            db->Put(writeOptions, uint64_to_string(Book->entry[pos].key)+"_draws", int_to_string(Book->entry[pos].draws));
+            
             delete Book->entry[pos].game_ids;
+            delete Book->entry[pos].moves;
+            
         }
         book_clear();
 
@@ -528,7 +527,7 @@ static void book_save(const char file_name[], const char leveldb_file[]) {
         if (file_name != NULL) {
 
             write_integer(file, 8, Book->entry[pos].key);
-            write_integer(file, 2, Book->entry[pos].move);
+//            write_integer(file, 2, Book->entry[pos].move);
             write_integer(file, 2, entry_score(&Book->entry[pos]));
             write_integer(file, 2, 0);
             write_integer(file, 2, 0);
@@ -545,16 +544,16 @@ static void book_save(const char file_name[], const char leveldb_file[]) {
 
 // find_entry()
 
-static int find_entry(const board_t * board, int move) {
+static int find_entry(const board_t * board) {
 
   uint64 key;
   int index;
   int pos;
 
   ASSERT(board!=NULL);
-  ASSERT(move_is_ok(move));
-
-  ASSERT(move_is_legal(move,board));
+//  ASSERT(move_is_ok(move));
+//
+//  ASSERT(move_is_legal(move,board));
 
   // init
 
@@ -567,7 +566,10 @@ static int find_entry(const board_t * board, int move) {
 
         ASSERT(pos>=0&&pos<Book->size);
 
-        if (Book->entry[pos].key == key && Book->entry[pos].move == move) {
+//        if (Book->entry[pos].key == key && Book->entry[pos].move == move) {
+//            return pos; // found
+//          }
+        if (Book->entry[pos].key == key) {
             return pos; // found
           }
       }
@@ -592,9 +594,12 @@ static int find_entry(const board_t * board, int move) {
     pos = Book->size++;
 
     Book->entry[pos].key = key;
-    Book->entry[pos].move = move;
+//    Book->entry[pos].move = move;
+    Book->entry[pos].moves = new set<uint16>();
     Book->entry[pos].n = 0;
-    Book->entry[pos].sum = 0;
+    Book->entry[pos].white_score = 0;
+    Book->entry[pos].draws = 0;
+
     Book->entry[pos].game_ids = new set<int>();
     Book->entry[pos].colour = board->turn;
 
@@ -665,7 +670,7 @@ static void halve_stats(uint64 key) {
 
       if (Book->entry[pos].key == key) {
          Book->entry[pos].n = (Book->entry[pos].n + 1) / 2;
-         Book->entry[pos].sum = (Book->entry[pos].sum + 1) / 2;
+         Book->entry[pos].white_score = (Book->entry[pos].white_score + 1) / 2;
       }
    }
 }
@@ -685,9 +690,9 @@ static bool keep_entry(int pos) {
    // if (entry->n == 0) return false;
    if (entry->n < MinGame) return false;
 
-   if (entry->sum == 0) return false;
+   if (entry->white_score == 0) return false;
 
-   score = (double(entry->sum) / double(entry->n)) / 2.0;
+   score = (double(entry->white_score) / double(entry->n)) / 2.0;
    ASSERT(score>=0.0&&score<=1.0);
 
    if (score < MinScore) return false;
@@ -713,7 +718,7 @@ static int entry_score(const entry_t * entry) {
    ASSERT(entry!=NULL);
 
    // score = entry->n; // popularity
-   score = entry->sum; // "expectancy"
+   score = entry->white_score; // "expectancy"
 
    if (Uniform) score = 1;
 
