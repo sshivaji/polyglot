@@ -30,8 +30,8 @@ uninstall:
 
 CXX       = g++
 CXXFLAGS  = -pipe
-LDFLAGS   = -lm -lleveldb
-
+LDFLAGS   = -lm
+LATE_LD_FLAGS = -lleveldb
 # C++
 
 CXXFLAGS += -fno-exceptions -fno-rtti
@@ -48,7 +48,7 @@ CXXFLAGS += -fomit-frame-pointer
 # dependencies
 
 $(EXE): $(OBJS)
-	$(CXX) $(LDFLAGS) -o $@ $(OBJS)
+	$(CXX) $(LDFLAGS) -o $@ $(OBJS) $(LATE_LD_FLAGS)
 
 %.s: %.cpp
 	$(CXX) -S $(CXXFLAGS) $<
