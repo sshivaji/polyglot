@@ -22,7 +22,7 @@ struct entry_t {
    uint16 move;
    uint16 count;
    uint16 n;
-   uint16 sum;
+   uint16 white_score;
 };
 
 // variables
@@ -211,7 +211,7 @@ void book_learn_move(const board_t * board, int move, int result) {
       if (entry->move == move) {
 
          entry->n++;
-         entry->sum += result+1;
+         entry->white_score += result+1;
 
          write_entry(entry,pos);
 
@@ -279,7 +279,7 @@ static void read_entry(entry_t * entry, int n) {
    entry->move  = read_integer(BookFile,2);
    entry->count = read_integer(BookFile,2);
    entry->n     = read_integer(BookFile,2);
-   entry->sum   = read_integer(BookFile,2);
+   entry->white_score   = read_integer(BookFile,2);
 }
 
 // write_entry()
@@ -297,7 +297,7 @@ static void write_entry(const entry_t * entry, int n) {
    write_integer(BookFile,2,entry->move);
    write_integer(BookFile,2,entry->count);
    write_integer(BookFile,2,entry->n);
-   write_integer(BookFile,2,entry->sum);
+   write_integer(BookFile,2,entry->white_score);
 }
 
 // read_integer()

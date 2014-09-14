@@ -23,7 +23,7 @@ struct entry_t {
    uint16 move;
    uint16 count;
    uint16 n;
-   uint16 sum;
+   uint16 white_score;
 };
 
 // variables
@@ -227,7 +227,7 @@ static bool read_entry(book_t * book, entry_t * entry, int n) {
    entry->move  = read_integer(book->file,2);
    entry->count = read_integer(book->file,2);
    entry->n     = read_integer(book->file,2);
-   entry->sum   = read_integer(book->file,2);
+   entry->white_score   = read_integer(book->file,2);
 
    return true;
 }
@@ -243,7 +243,7 @@ static void write_entry(book_t * book, const entry_t * entry) {
    write_integer(book->file,2,entry->move);
    write_integer(book->file,2,entry->count);
    write_integer(book->file,2,entry->n);
-   write_integer(book->file,2,entry->sum);
+   write_integer(book->file,2,entry->white_score);
 }
 
 // read_integer()
