@@ -360,34 +360,9 @@ static void book_insert(const char file_name[], const char leveldb_file_name[]) 
             Book->entry[pos].white_score += result;
             Book->entry[pos].draws += draw;
             
-//            ASSERT(move_is_ok(move));
-//            ASSERT(move_is_legal(move,board));
-            
             Book->entry[pos].moves->insert(move);
             Book->entry[pos].game_ids->insert(game_nb);
 
-//            if (Book->entry[pos].n >= COUNT_MAX) {
-//                halve_stats(board->key);
-//            }
-//            }
-//            else {
-//                std::stringstream game_id_stream;
-//                std::string currentValue;
-//                leveldb::Status s = db->Get(leveldb::ReadOptions(), uint64_to_string(board->key), &currentValue);
-//                if (s.ok()) {
-//                    game_id_stream << currentValue;
-//                }
-//                
-//                game_id_stream << game_nb << ",";
-////                for (set<int>::iterator it = Book->entry[pos].game_ids->begin(); it != Book->entry[pos].game_ids->end(); ++it) {
-////                    game_id_stream << *it << ",";
-////                }
-////                writeBatch.Put(uint64_to_string(board->key), game_id_stream.str());
-////                db->Put(writeOptions, uint64_to_string(board->key), game_id_stream.str());
-//                
-//              }
-
-           
             move_do(board,move);
             ply++;            
 //            result = -result;
@@ -400,33 +375,35 @@ static void book_insert(const char file_name[], const char leveldb_file_name[]) 
 
       }
 
-      if (game_nb % 100000 == 0) { 
-          if (leveldb_file_name!=NULL) {
-            printf("\nPutting games into leveldb.."); 
-              
-            for (pos = 0; pos < Book->size; pos++) {
-
-                std::stringstream game_id_stream;
-//                std::string currentValue;
-//                leveldb::Status s = db->Get(leveldb::ReadOptions(), uint64_to_string(Book->entry[pos].key), &currentValue);
-//                if (s.ok()) {
-//                    game_id_stream << currentValue;
+//      TODO: Make it mem efficient
+      
+//      if (game_nb % 600000 == 0) { 
+//          if (leveldb_file_name!=NULL) {
+//            printf("\nPutting games into leveldb.."); 
+//              
+//            for (pos = 0; pos < Book->size; pos++) {
+//
+//                std::stringstream game_id_stream;
+////                std::string currentValue;
+////                leveldb::Status s = db->Get(leveldb::ReadOptions(), uint64_to_string(Book->entry[pos].key), &currentValue);
+////                if (s.ok()) {
+////                    game_id_stream << currentValue;
+////                }
+//
+//                for (set<int>::iterator it = Book->entry[pos].game_ids->begin(); it != Book->entry[pos].game_ids->end(); ++it) {
+//                    game_id_stream << *it << ",";
 //                }
-
-                for (set<int>::iterator it = Book->entry[pos].game_ids->begin(); it != Book->entry[pos].game_ids->end(); ++it) {
-                    game_id_stream << *it << ",";
-                }
-
-                db->Put(writeOptions, uint64_to_string(Book->entry[pos].key), game_id_stream.str());
-                
-                
-            }
-            book_clear();
-              
-//            db->Write(leveldb::WriteOptions(), &writeBatch);
-//            writeBatch.Clear();
-          }
-      }
+//
+//                db->Put(writeOptions, uint64_to_string(Book->entry[pos].key), game_id_stream.str());
+//                
+//                
+//            }
+//            book_clear();
+//              
+////            db->Write(leveldb::WriteOptions(), &writeBatch);
+////            writeBatch.Clear();
+//          }
+//      }
    }
 
    pgn_close(pgn);
