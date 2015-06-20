@@ -31,7 +31,7 @@ uninstall:
 CXX       = g++ -std=c++11
 CXXFLAGS  = -pipe
 LDFLAGS   = -lm
-LATE_LD_FLAGS = -lrocksdb -lpthread -lz -lbz2
+LATE_LD_FLAGS = -lrocksdb -lpthread -lz -lbz2 -lsnappy
 # C++
 
 CXXFLAGS += -fno-exceptions -fno-rtti
