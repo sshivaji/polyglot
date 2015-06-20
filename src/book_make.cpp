@@ -65,7 +65,7 @@ static enum STORAGE
   } Storage;
 
 static book_t Book[1];
-//static leveldb::DB *BookLevelDb;
+//static rocksdb::DB *BookLevelDb;
 
 // prototypes
 
@@ -249,9 +249,9 @@ static std::string uint64_to_string( uint64 value ) {
 static void book_clear() {
 
 //  if (Storage == LEVELDB) {
-//      leveldb::Options options;
+//      rocksdb::Options options;
 //      options.create_if_missing = true;
-//      leveldb::DB::Open(options, bin_file, &BookLevelDb);
+//      rocksdb::DB::Open(options, bin_file, &BookLevelDb);
 //    }
 //  else {
       int index;
@@ -282,18 +282,18 @@ static void book_insert(const char file_name[], const char leveldb_file_name[]) 
    char string[256];
    int move;
    int pos;
-   leveldb::WriteOptions writeOptions;
+   rocksdb::WriteOptions writeOptions;
    
 
-   leveldb::DB* db;
+   rocksdb::DB* db;
    ASSERT(file_name!=NULL);
 
 
    if (leveldb_file_name!=NULL) {
        
-       leveldb::Options options;
+       rocksdb::Options options;
        options.create_if_missing = true;
-       leveldb::Status status = leveldb::DB::Open(options, leveldb_file_name, &db);
+       rocksdb::Status status = rocksdb::DB::Open(options, leveldb_file_name, &db);
        std::cout << leveldb_file_name<<"\n";        
 //       assert(status.ok());
        
@@ -385,7 +385,7 @@ static void book_insert(const char file_name[], const char leveldb_file_name[]) 
 //
 //                std::stringstream game_id_stream;
 ////                std::string currentValue;
-////                leveldb::Status s = db->Get(leveldb::ReadOptions(), uint64_to_string(Book->entry[pos].key), &currentValue);
+////                rocksdb::Status s = db->Get(rocksdb::ReadOptions(), uint64_to_string(Book->entry[pos].key), &currentValue);
 ////                if (s.ok()) {
 ////                    game_id_stream << currentValue;
 ////                }
@@ -400,7 +400,7 @@ static void book_insert(const char file_name[], const char leveldb_file_name[]) 
 //            }
 //            book_clear();
 //              
-////            db->Write(leveldb::WriteOptions(), &writeBatch);
+////            db->Write(rocksdb::WriteOptions(), &writeBatch);
 ////            writeBatch.Clear();
 //          }
 //      }
@@ -419,7 +419,7 @@ static void book_insert(const char file_name[], const char leveldb_file_name[]) 
             std::stringstream move_stream;
 
 //            std::string currentValue;
-//            leveldb::Status s = db->Get(leveldb::ReadOptions(), uint64_to_string(Book->entry[pos].key), &currentValue);
+//            rocksdb::Status s = db->Get(rocksdb::ReadOptions(), uint64_to_string(Book->entry[pos].key), &currentValue);
 //            if (s.ok()) {
 //                game_id_stream << currentValue;
 //            }
@@ -490,13 +490,13 @@ static void book_save(const char file_name[], const char leveldb_file[]) {
    FILE * file;
    int pos;
 
-   leveldb::WriteOptions writeOptions = leveldb::WriteOptions();
-   leveldb::DB* BookLevelDb;
+   rocksdb::WriteOptions writeOptions = rocksdb::WriteOptions();
+   rocksdb::DB* BookLevelDb;
 
     if (leveldb_file != NULL) {
-        leveldb::Options options;
+        rocksdb::Options options;
         options.create_if_missing = true;
-        leveldb::Status status = leveldb::DB::Open(options, leveldb_file, &BookLevelDb);
+        rocksdb::Status status = rocksdb::DB::Open(options, leveldb_file, &BookLevelDb);
         assert(status.ok());
     }
    
@@ -512,7 +512,7 @@ static void book_save(const char file_name[], const char leveldb_file[]) {
         if (leveldb_file != NULL) {
             std::stringstream game_id_stream;
             std::string currentValue;
-            leveldb::Status s = BookLevelDb->Get(leveldb::ReadOptions(), uint64_to_string(Book->entry[pos].key), &currentValue);
+            rocksdb::Status s = BookLevelDb->Get(rocksdb::ReadOptions(), uint64_to_string(Book->entry[pos].key), &currentValue);
             if (s.ok()) {
                  game_id_stream << currentValue;
             }

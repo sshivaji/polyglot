@@ -28,10 +28,10 @@ uninstall:
 
 # general
 
-CXX       = g++
+CXX       = g++ -std=c++11
 CXXFLAGS  = -pipe
 LDFLAGS   = -lm
-LATE_LD_FLAGS = -lleveldb
+LATE_LD_FLAGS = -lrocksdb -lpthread -lz -lbz2
 # C++
 
 CXXFLAGS += -fno-exceptions -fno-rtti
