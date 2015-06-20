@@ -87,6 +87,19 @@ static int    key_compare   (const void * p1, const void * p2);
 
 static void   write_integer (FILE * file, int size, uint64 n);
 
+const char digit_pairs[201] = {
+  "00010203040506070809"
+  "10111213141516171819"
+  "20212223242526272829"
+  "30313233343536373839"
+  "40414243444546474849"
+  "50515253545556575859"
+  "60616263646566676869"
+  "70717273747576777879"
+  "80818283848586878889"
+  "90919293949596979899"
+};
+
 // functions
 
 // book_make()
@@ -192,27 +205,27 @@ void book_make(int argc, char * argv[]) {
    printf("inserting games ...\n");
 //   book_insert(pgn_file);
    
-   if (Storage == LEVELDB) {
+//   if (Storage == LEVELDB) {
         printf("Saving to leveldb.. \n");
         book_insert(pgn_file, leveldb_file);
-   }
-   else {
-        book_insert(pgn_file, NULL);
-        printf("filtering entries ...\n");
-        book_filter();
-
-        printf("sorting entries ...\n");
-        book_sort();
-
-        printf("saving entries ...\n");
-//        if (Storage == LEVELDB) {
-//                printf("Saving to leveldb.. \n");
-//                book_save(NULL, leveldb_file);
-//        }
-//        else {
-        book_save(bin_file, NULL);
-//        }
-    }
+//   }
+//   else {
+//        book_insert(pgn_file, NULL);
+//        printf("filtering entries ...\n");
+//        book_filter();
+//
+//        printf("sorting entries ...\n");
+//        book_sort();
+//
+//        printf("saving entries ...\n");
+////        if (Storage == LEVELDB) {
+////                printf("Saving to leveldb.. \n");
+////                book_save(NULL, leveldb_file);
+////        }
+////        else {
+//        book_save(bin_file, NULL);
+////        }
+//    }
 
    
 
@@ -432,7 +445,6 @@ static void book_insert(const char file_name[], const char leveldb_file_name[]) 
                 move_stream << *it << ",";
             }
             
-            
             db->Put(writeOptions, uint64_to_string(Book->entry[pos].key), game_id_stream.str());
             db->Put(writeOptions, uint64_to_string(Book->entry[pos].key)+"_moves", move_stream.str());
             db->Put(writeOptions, uint64_to_string(Book->entry[pos].key)+"_freq",  int_to_string(Book->entry[pos].n));
@@ -456,91 +468,91 @@ static void book_insert(const char file_name[], const char leveldb_file_name[]) 
 
 // book_filter()
 
-static void book_filter() {
-
-   int src, dst;
-
-   // entry loop
-
-   dst = 0;
-
-   for (src = 0; src < Book->size; src++) {
-      if (keep_entry(src)) Book->entry[dst++] = Book->entry[src];
-   }
-
-   ASSERT(dst>=0&&dst<=Book->size);
-   Book->size = dst;
-
-   printf("%d entries.\n",Book->size);
-}
-
-// book_sort()
-
-static void book_sort() {
-
-   // sort keys for binary search
-
-   qsort(Book->entry,Book->size,sizeof(entry_t),&key_compare);
-}
-
-// book_save()
-// TODO: refactor this to 2 methods
-static void book_save(const char file_name[], const char leveldb_file[]) {
-
-   FILE * file;
-   int pos;
-
-   rocksdb::WriteOptions writeOptions = rocksdb::WriteOptions();
-   rocksdb::DB* BookLevelDb;
-
-    if (leveldb_file != NULL) {
-        rocksdb::Options options;
-        options.create_if_missing = true;
-        rocksdb::Status status = rocksdb::DB::Open(options, leveldb_file, &BookLevelDb);
-        assert(status.ok());
-    }
-   
-   if (file_name != NULL) {
-       file = fopen(file_name,"wb");
-       if (file == NULL) my_fatal("book_save(): can't open file \"%s\" for writing: %s\n",file_name,strerror(errno));
-   }
-   // entry loop
-
-    for (pos = 0; pos < Book->size; pos++) {
-
-        ASSERT(keep_entry(pos));
-        if (leveldb_file != NULL) {
-            std::stringstream game_id_stream;
-            std::string currentValue;
-            rocksdb::Status s = BookLevelDb->Get(rocksdb::ReadOptions(), uint64_to_string(Book->entry[pos].key), &currentValue);
-            if (s.ok()) {
-                 game_id_stream << currentValue;
-            }
-            
-            for (set<int>::iterator it = Book->entry[pos].game_ids->begin(); it != Book->entry[pos].game_ids->end(); ++it) {
-                game_id_stream << *it << ",";
-            }
-            
-            BookLevelDb->Put(writeOptions, uint64_to_string(Book->entry[pos].key), game_id_stream.str());
-        }
-
-        if (file_name != NULL) {
-
-            write_integer(file, 8, Book->entry[pos].key);
-//            write_integer(file, 2, Book->entry[pos].move);
-            write_integer(file, 2, entry_score(&Book->entry[pos]));
-            write_integer(file, 2, 0);
-            write_integer(file, 2, 0);
-        }
-    }
-   if (leveldb_file != NULL) {
-        delete BookLevelDb;
-   }
-   
-  if (file_name != NULL) {
-      fclose(file);
-  }
-}
+//static void book_filter() {
+//
+//   int src, dst;
+//
+//   // entry loop
+//
+//   dst = 0;
+//
+//   for (src = 0; src < Book->size; src++) {
+//      if (keep_entry(src)) Book->entry[dst++] = Book->entry[src];
+//   }
+//
+//   ASSERT(dst>=0&&dst<=Book->size);
+//   Book->size = dst;
+//
+//   printf("%d entries.\n",Book->size);
+//}
+//
+//// book_sort()
+//
+//static void book_sort() {
+//
+//   // sort keys for binary search
+//
+//   qsort(Book->entry,Book->size,sizeof(entry_t),&key_compare);
+//}
+//
+//// book_save()
+//// TODO: refactor this to 2 methods
+//static void book_save(const char file_name[], const char leveldb_file[]) {
+//
+//   FILE * file;
+//   int pos;
+//
+//   rocksdb::WriteOptions writeOptions = rocksdb::WriteOptions();
+//   rocksdb::DB* BookLevelDb;
+//
+//    if (leveldb_file != NULL) {
+//        rocksdb::Options options;
+//        options.create_if_missing = true;
+//        rocksdb::Status status = rocksdb::DB::Open(options, leveldb_file, &BookLevelDb);
+//        assert(status.ok());
+//    }
+//   
+//   if (file_name != NULL) {
+//       file = fopen(file_name,"wb");
+//       if (file == NULL) my_fatal("book_save(): can't open file \"%s\" for writing: %s\n",file_name,strerror(errno));
+//   }
+//   // entry loop
+//
+//    for (pos = 0; pos < Book->size; pos++) {
+//
+//        ASSERT(keep_entry(pos));
+//        if (leveldb_file != NULL) {
+//            std::stringstream game_id_stream;
+//            std::string currentValue;
+//            rocksdb::Status s = BookLevelDb->Get(rocksdb::ReadOptions(), uint64_to_string(Book->entry[pos].key), &currentValue);
+//            if (s.ok()) {
+//                 game_id_stream << currentValue;
+//            }
+//            
+//            for (set<int>::iterator it = Book->entry[pos].game_ids->begin(); it != Book->entry[pos].game_ids->end(); ++it) {
+//                game_id_stream << *it << ",";
+//            }
+//            
+//            BookLevelDb->Put(writeOptions, uint64_to_string(Book->entry[pos].key), game_id_stream.str());
+//        }
+//
+//        if (file_name != NULL) {
+//
+//            write_integer(file, 8, Book->entry[pos].key);
+////            write_integer(file, 2, Book->entry[pos].move);
+//            write_integer(file, 2, entry_score(&Book->entry[pos]));
+//            write_integer(file, 2, 0);
+//            write_integer(file, 2, 0);
+//        }
+//    }
+//   if (leveldb_file != NULL) {
+//        delete BookLevelDb;
+//   }
+//   
+//  if (file_name != NULL) {
+//      fclose(file);
+//  }
+//}
 
 // find_entry()
 
