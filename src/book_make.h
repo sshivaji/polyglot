@@ -9,7 +9,9 @@
 #include "util.h"
 //#include "leveldb/db.h"
 #include "rocksdb/slice.h"
-#include "rocksdb/db.h"  
+#include "rocksdb/db.h" 
+#include "rocksdb/write_batch.h"
+
 
 
 // functions

@@ -226,7 +226,6 @@ void book_make(int argc, char * argv[]) {
 //        book_save(bin_file, NULL);
 ////        }
 //    }
-
    
 
    printf("all done!\n");
@@ -238,24 +237,6 @@ static std::string game_info_to_string(const char* a, int i, const char* b) {
     return os.str();
  }
 
-static std::string char_to_string(const char* a) {
-    std::ostringstream os;
-    os << a;
-    return os.str();
- }
-
-static std::string int_to_string(int i) {
-    std::ostringstream os;
-    os << i;
-    return os.str();
- }
-
-
-static std::string uint64_to_string( uint64 value ) {
-    std::ostringstream os;
-    os << value;
-    return os.str();
-}
 
 // book_clear()
 
@@ -306,6 +287,7 @@ static void book_insert(const char file_name[], const char leveldb_file_name[]) 
        
        rocksdb::Options options;
        options.create_if_missing = true;
+//       options.max_background_compactions = 4;
        rocksdb::Status status = rocksdb::DB::Open(options, leveldb_file_name, &db);
        std::cout << leveldb_file_name<<"\n";        
 //       assert(status.ok());
@@ -427,6 +409,11 @@ static void book_insert(const char file_name[], const char leveldb_file_name[]) 
    }
    else {        
         printf("Iterating thru all book positions..");
+        rocksdb::WriteBatch batch;
+        rocksdb::WriteOptions writeOptions;
+        writeOptions.disableWAL = true;
+        
+
         for (pos = 0; pos < Book->size; pos++) {
             std::stringstream game_id_stream;
             std::stringstream move_stream;
@@ -445,21 +432,30 @@ static void book_insert(const char file_name[], const char leveldb_file_name[]) 
                 move_stream << *it << ",";
             }
             
-            db->Put(writeOptions, uint64_to_string(Book->entry[pos].key), game_id_stream.str());
-            db->Put(writeOptions, uint64_to_string(Book->entry[pos].key)+"_moves", move_stream.str());
-            db->Put(writeOptions, uint64_to_string(Book->entry[pos].key)+"_freq",  int_to_string(Book->entry[pos].n));
-            db->Put(writeOptions, uint64_to_string(Book->entry[pos].key)+"_white_score", int_to_string(Book->entry[pos].white_score));
-            db->Put(writeOptions, uint64_to_string(Book->entry[pos].key)+"_draws", int_to_string(Book->entry[pos].draws));
+//            db->Put(writeOptions, std::to_string(Book->entry[pos].key), game_id_stream.str());
+//            db->Put(writeOptions, std::to_string(Book->entry[pos].key)+"_moves", move_stream.str());
+//            db->Put(writeOptions, std::to_string(Book->entry[pos].key)+"_freq",  std::to_string(Book->entry[pos].n));
+//            db->Put(writeOptions, std::to_string(Book->entry[pos].key)+"_white_score", std::to_string(Book->entry[pos].white_score));
+//            db->Put(writeOptions, std::to_string(Book->entry[pos].key)+"_draws", std::to_string(Book->entry[pos].draws));
+
+            batch.Put(std::to_string(Book->entry[pos].key), game_id_stream.str());
+            batch.Put(std::to_string(Book->entry[pos].key)+"_moves", move_stream.str());
+            batch.Put(std::to_string(Book->entry[pos].key)+"_freq",  std::to_string(Book->entry[pos].n));
+            batch.Put(std::to_string(Book->entry[pos].key)+"_white_score", std::to_string(Book->entry[pos].white_score));
+            batch.Put(std::to_string(Book->entry[pos].key)+"_draws", std::to_string(Book->entry[pos].draws));
+
             
             delete Book->entry[pos].game_ids;
             delete Book->entry[pos].moves;
             
+            
         }
+        db->Write(writeOptions, &batch);
         book_clear();
 
 
-       db->Put(writeOptions, char_to_string("total_game_count"), int_to_string(game_nb+1));
-       db->Put(writeOptions, char_to_string("pgn_filename"), char_to_string(file_name));
+       db->Put(writeOptions, "total_game_count", std::to_string(game_nb+1));
+       db->Put(writeOptions, "pgn_filename", file_name);
        delete db;    
    }
 
