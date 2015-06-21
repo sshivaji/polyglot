@@ -7,10 +7,14 @@
 // includes
 
 #include "util.h"
-//#include "leveldb/db.h"
+#include <thread> 
 #include "rocksdb/slice.h"
 #include "rocksdb/db.h" 
 #include "rocksdb/write_batch.h"
+
+#include "rocksdb/env.h"
+#include "rocksdb/merge_operator.h"
+#include "coding.h"
 
 
 
