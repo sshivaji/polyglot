@@ -86,7 +86,7 @@ static int key_compare(const void * p1, const void * p2);
 
 static void write_integer(FILE * file, int size, uint64 n);
 
-// Imagine we are maintaining a set of uint64 counters.
+// Imagine we are maintaining a set of uint32 counters. Example taken from rocksdb merge example
 // Each counter has a distinct name. And we would like
 // to support four high level operations:
 // set, add, get and remove
@@ -470,29 +470,31 @@ static void book_insert(const char file_name[], const char leveldb_file_name[]) 
     ASSERT(file_name != NULL);
 
 
-    if (leveldb_file_name != NULL) {
+//    if (leveldb_file_name != NULL) {
 
-        rocksdb::Options options;
-        options.create_if_missing = true;
-        options.merge_operator.reset(new UInt32AddOperator);
+    rocksdb::Options options;
+    options.create_if_missing = true;
+    options.merge_operator.reset(new UInt32AddOperator);
 
-        //       MergeBasedCounters counters(db);
+    //       MergeBasedCounters counters(db);
 
-        unsigned concurrentThreadsSupported = std::thread::hardware_concurrency();
-        if (concurrentThreadsSupported != 0) {
-            // Adjust for hyperthreading
-            if (concurrentThreadsSupported >= 4) {
-                concurrentThreadsSupported /= 2;
-            }
-            cout << "Using " << concurrentThreadsSupported << " threads\n";
-            options.max_background_compactions = concurrentThreadsSupported;
+    unsigned concurrentThreadsSupported = std::thread::hardware_concurrency();
+    if (concurrentThreadsSupported != 0) {
+        // Adjust for hyperthreading
+        if (concurrentThreadsSupported >= 4) {
+            concurrentThreadsSupported /= 2;
         }
-        rocksdb::Status status = rocksdb::DB::Open(options, leveldb_file_name, &db);
-        std::shared_ptr<rocksdb::DB> ds (db);
-        std::cout << leveldb_file_name << "\n";
-        //       assert(status.ok());
-
+        cout << "Using " << concurrentThreadsSupported << " threads\n";
+        options.max_background_compactions = concurrentThreadsSupported;
     }
+    rocksdb::Status status = rocksdb::DB::Open(options, leveldb_file_name, &db);
+    std::shared_ptr<rocksdb::DB> dc (db);
+    MergeBasedCounters counters(dc);
+//        counters.add("a", 1);
+    std::cout << leveldb_file_name << "\n";
+    //       assert(status.ok());
+
+//    }
 
     // scan loop
 
@@ -617,22 +619,27 @@ static void book_insert(const char file_name[], const char leveldb_file_name[]) 
                     batch.Put(std::to_string(Book->entry[pos].key), game_id_stream.str());
                     batch.Put(std::to_string(Book->entry[pos].key) + "_moves", move_stream.str());
 
-                    s = db->Get(readOptions, std::to_string(Book->entry[pos].key) + "_freq", &currentValue);
-                    if (s.ok()) {
-                        Book->entry[pos].n += std::stoi(currentValue);
-                    }
-                    s = db->Get(readOptions, std::to_string(Book->entry[pos].key) + "_white_score", &currentValue);
-                    if (s.ok()) {
-                        Book->entry[pos].white_score += std::stoi(currentValue);
-                    }
-                    s = db->Get(readOptions, std::to_string(Book->entry[pos].key) + "_draws", &currentValue);
-                    if (s.ok()) {
-                        Book->entry[pos].draws += std::stoi(currentValue);
-                    }
-
-                    batch.Put(std::to_string(Book->entry[pos].key) + "_freq", std::to_string(Book->entry[pos].n));
-                    batch.Put(std::to_string(Book->entry[pos].key) + "_white_score", std::to_string(Book->entry[pos].white_score));
-                    batch.Put(std::to_string(Book->entry[pos].key) + "_draws", std::to_string(Book->entry[pos].draws));
+//                    s = db->Get(readOptions, std::to_string(Book->entry[pos].key) + "_freq", &currentValue);
+//                    if (s.ok()) {
+//                        Book->entry[pos].n += std::stoi(currentValue);
+//                    }
+//                    s = db->Get(readOptions, std::to_string(Book->entry[pos].key) + "_white_score", &currentValue);
+//                    if (s.ok()) {
+//                        Book->entry[pos].white_score += std::stoi(currentValue);
+//                    }
+//                    s = db->Get(readOptions, std::to_string(Book->entry[pos].key) + "_draws", &currentValue);
+//                    if (s.ok()) {
+//                        Book->entry[pos].draws += std::stoi(currentValue);
+//                    }
+                    
+                    
+                    counters.add((std::to_string(Book->entry[pos].key) + "_freq"), Book->entry[pos].n);
+                    counters.add((std::to_string(Book->entry[pos].key) + "_white_score"), Book->entry[pos].white_score);
+                    counters.add((std::to_string(Book->entry[pos].key) + "_draws"), Book->entry[pos].draws);
+                    
+//                    batch.Put(std::to_string(Book->entry[pos].key) + "_freq", std::to_string(Book->entry[pos].n));
+//                    batch.Put(std::to_string(Book->entry[pos].key) + "_white_score", std::to_string(Book->entry[pos].white_score));
+//                    batch.Put(std::to_string(Book->entry[pos].key) + "_draws", std::to_string(Book->entry[pos].draws));
 
 
 
