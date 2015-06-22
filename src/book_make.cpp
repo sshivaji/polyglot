@@ -87,26 +87,25 @@ static int    key_compare   (const void * p1, const void * p2);
 
 static void   write_integer (FILE * file, int size, uint64 n);
 
-namespace rocksdb {
 // A 'model' merge operator with uint64 addition semantics
 // Implemented as an AssociativeMergeOperator for simplicity and example.
-class UInt64AddOperator : public rocksdb::AssociativeMergeOperator {
+class UInt32AddOperator : public rocksdb::AssociativeMergeOperator {
  public:
   virtual bool Merge(const rocksdb::Slice& key,
                      const rocksdb::Slice* existing_value,
                      const rocksdb::Slice& value,
                      std::string* new_value,
                      rocksdb::Logger* logger) const override {
-    uint64_t orig_value = 0;
+    uint32_t orig_value = 0;
     if (existing_value){
-      orig_value = DecodeInteger(*existing_value, logger);
+      orig_value = DecodeInteger32(*existing_value, logger);
     }
-    uint64_t operand = DecodeInteger(value, logger);
+    uint32_t operand = DecodeInteger32(value, logger);
 
     assert(new_value);
     new_value->clear();
     
-    PutFixed64(new_value, orig_value + operand);
+    rocksdb::PutFixed32(new_value, orig_value + operand);
 
     return true;  // Return true always since corruption will be treated as 0
   }
@@ -118,23 +117,25 @@ class UInt64AddOperator : public rocksdb::AssociativeMergeOperator {
  private:
   // Takes the string and decodes it into a uint64_t
   // On error, prints a message and returns 0
-  uint64_t DecodeInteger(const rocksdb::Slice& value, Logger* logger) const {
-    uint64_t result = 0;
+  uint32_t DecodeInteger32(const rocksdb::Slice& value, rocksdb::Logger* logger) const {
+    uint32_t result = 0;
 
-    if (value.size() == sizeof(uint64_t)) {
-      result = DecodeFixed64(value.data());
+    if (value.size() == sizeof(uint32_t)) {
+      result = rocksdb::DecodeFixed32(value.data());
     } else if (logger != nullptr) {
       // If value is corrupted, treat it as 0
-      Log(InfoLogLevel::ERROR_LEVEL, logger,
+      rocksdb::Log(rocksdb::InfoLogLevel::ERROR_LEVEL, logger,
           "uint64 value corruption, size: %zu > %zu",
-          value.size(), sizeof(uint64_t));
+          value.size(), sizeof(uint32_t));
     }
 
     return result;
   }
 
 };
-}
+
+
+
 // functions
 // book_make()
 
@@ -321,6 +322,10 @@ static void book_insert(const char file_name[], const char leveldb_file_name[]) 
        
        rocksdb::Options options;
        options.create_if_missing = true;
+       options.merge_operator.reset(new UInt32AddOperator);
+       
+//       MergeBasedCounters counters(db);
+       
        unsigned concurrentThreadsSupported = std::thread::hardware_concurrency();
        if (concurrentThreadsSupported != 0) {
            // Adjust for hyperthreading
