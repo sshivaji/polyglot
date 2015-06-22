@@ -8,7 +8,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include <set>
+#include <set>  
 #include <iostream>
 #include <sstream>
 
@@ -85,6 +85,185 @@ static int entry_score(const entry_t * entry);
 static int key_compare(const void * p1, const void * p2);
 
 static void write_integer(FILE * file, int size, uint64 n);
+
+class SetCounters {
+protected:
+    std::shared_ptr<rocksdb::DB> db_;
+
+    rocksdb::WriteOptions put_option_;
+    rocksdb::ReadOptions get_option_;
+    rocksdb::WriteOptions delete_option_;
+
+    std::set<int> default_;
+
+public:
+
+    explicit SetCounters(std::shared_ptr<rocksdb::DB> db, std::set<int> defaultSet)
+    : db_(db),
+    put_option_(),
+    get_option_(),
+    delete_option_(),
+    default_(defaultSet) {
+        assert(db_);
+    }
+
+    virtual ~SetCounters() {
+    }
+
+    // public interface of Counters.
+    // All four functions return false
+    // if the underlying level db operation failed.
+
+    // mapped to a levedb Put
+
+    bool set(const string& key, int value) {
+        // just treat the internal rep of int32 as the string
+        rocksdb::Slice slice((char *) &value, sizeof (value));
+//        
+//        rocksdb::Status s = db_->Get(readOptions, std::to_string(Book->entry[pos].key), &currentValue);
+//                    if (s.ok()) {
+//                        game_id_stream << currentValue;
+//                    }
+        
+        auto s = db_->Put(put_option_, key, slice);
+
+        if (s.ok()) {
+            return true;
+        } else {
+            cerr << s.ToString() << endl;
+            return false;
+        }
+    }
+
+    // mapped to a rocksdb Delete
+
+    bool remove(const string& key) {
+        auto s = db_->Delete(delete_option_, key);
+
+        if (s.ok()) {
+            return true;
+        } else {
+            cerr << s.ToString() << std::endl;
+            return false;
+        }
+    }
+
+    // mapped to a rocksdb Get
+
+    bool get(const string& key, int *value) {
+        string str;
+        auto s = db_->Get(get_option_, key, &str);
+
+        if (s.IsNotFound()) {
+            // return default value if not found;
+//            *value = default_;
+            return true;
+        } else if (s.ok()) {
+            // deserialization
+            if (str.size() != sizeof (uint32_t)) {
+                cerr << "value corruption\n";
+                return false;
+            }
+            *value = rocksdb::DecodeFixed32(&str[0]);
+            return true;
+        } else {
+            cerr << s.ToString() << std::endl;
+            return false;
+        }
+    }
+
+    // 'add' is implemented as get -> modify -> set
+    // An alternative is a single merge operation, see MergeBasedCounters
+
+    virtual bool add(const string& key, int value) {
+        return false;
+//        int base = default_;
+//        return get(key, &base) && set(key, base + value);
+    }
+
+};
+
+// Implement 'add' directly with the new Merge operation
+
+class MergeBasedSetCounters : public SetCounters {
+private:
+    rocksdb::WriteOptions merge_option_; // for merge
+
+public:
+
+    explicit MergeBasedSetCounters(std::shared_ptr<rocksdb::DB> db, std::set<int> defaultSet)
+    : SetCounters(db, defaultSet),
+    merge_option_() {
+    }
+
+    // mapped to a rocksdb Merge operation
+
+    virtual bool add(const string& key, int value) override {
+        char encoded[sizeof (uint32_t)];
+        rocksdb::EncodeFixed32(encoded, value);
+        rocksdb::Slice slice(encoded, sizeof (uint32_t));
+        auto s = db_->Merge(merge_option_, key, slice);
+
+        if (s.ok()) {
+            return true;
+        } else {
+            cerr << s.ToString() << endl;
+            return false;
+        }
+    }
+};
+
+
+// A 'model' merge operator with uint64 addition semantics
+// Implemented as an AssociativeMergeOperator for simplicity and example.
+
+class SetAddOperator : public rocksdb::AssociativeMergeOperator {
+public:
+
+    virtual bool Merge(const rocksdb::Slice& key,
+            const rocksdb::Slice* existing_value,
+            const rocksdb::Slice& value,
+            std::string* new_value,
+            rocksdb::Logger* logger) const override {
+        uint32_t orig_value = 0;
+        if (existing_value) {
+            orig_value = DecodeInteger32(*existing_value, logger);
+        }
+        uint32_t operand = DecodeInteger32(value, logger);
+
+        assert(new_value);
+        new_value->clear();
+
+        rocksdb::PutFixed32(new_value, orig_value + operand);
+
+        return true; // Return true always since corruption will be treated as 0
+    }
+
+    virtual const char* Name() const override {
+        return "UInt32AddOperator";
+    }
+
+private:
+    // Takes the string and decodes it into a uint64_t
+    // On error, prints a message and returns 0
+
+    uint32_t DecodeInteger32(const rocksdb::Slice& value, rocksdb::Logger* logger) const {
+        uint32_t result = 0;
+
+        if (value.size() == sizeof (uint32_t)) {
+            result = rocksdb::DecodeFixed32(value.data());
+        } else if (logger != nullptr) {
+            // If value is corrupted, treat it as 0
+            rocksdb::Log(rocksdb::InfoLogLevel::ERROR_LEVEL, logger,
+                    "uint32 value corruption, size: %zu > %zu",
+                    value.size(), sizeof (uint32_t));
+        }
+
+        return result;
+    }
+
+};
+
 
 // Imagine we are maintaining a set of uint32 counters. Example taken from rocksdb merge example
 // Each counter has a distinct name. And we would like
