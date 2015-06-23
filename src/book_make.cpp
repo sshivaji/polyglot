@@ -34,9 +34,9 @@ static const int NIL = -1;
 struct entry_t {
     uint64 key;
     //   uint16 move;
-    uint32 n;
-    uint32 white_score;
-    uint32 draws;
+    int n;
+    int white_score;
+    int draws;
 
     uint16 colour;
     set<int> * game_ids;
@@ -160,7 +160,7 @@ public:
             return true;
         } else if (s.ok()) {
             // deserialization
-            if (str.size() != sizeof (uint32_t)) {
+            if (str.size() != sizeof (int)) {
                 cerr << "value corruption\n";
                 return false;
             }
@@ -199,9 +199,9 @@ public:
     // mapped to a rocksdb Merge operation
 
     virtual bool add(const string& key, int value) override {
-        char encoded[sizeof (uint32_t)];
+        char encoded[sizeof (int)];
         rocksdb::EncodeFixed32(encoded, value);
-        rocksdb::Slice slice(encoded, sizeof (uint32_t));
+        rocksdb::Slice slice(encoded, sizeof (int));
         auto s = db_->Merge(merge_option_, key, slice);
 
         if (s.ok()) {
@@ -225,11 +225,11 @@ public:
             const rocksdb::Slice& value,
             std::string* new_value,
             rocksdb::Logger* logger) const override {
-        uint32_t orig_value = 0;
+        int orig_value = 0;
         if (existing_value) {
             orig_value = DecodeInteger32(*existing_value, logger);
         }
-        uint32_t operand = DecodeInteger32(value, logger);
+        int operand = DecodeInteger32(value, logger);
 
         assert(new_value);
         new_value->clear();
@@ -240,23 +240,23 @@ public:
     }
 
     virtual const char* Name() const override {
-        return "UInt32AddOperator";
+        return "SetAddOperator";
     }
 
 private:
     // Takes the string and decodes it into a uint64_t
     // On error, prints a message and returns 0
 
-    uint32_t DecodeInteger32(const rocksdb::Slice& value, rocksdb::Logger* logger) const {
-        uint32_t result = 0;
+    int DecodeInteger32(const rocksdb::Slice& value, rocksdb::Logger* logger) const {
+        int result = 0;
 
-        if (value.size() == sizeof (uint32_t)) {
+        if (value.size() == sizeof (int)) {
             result = rocksdb::DecodeFixed32(value.data());
         } else if (logger != nullptr) {
             // If value is corrupted, treat it as 0
             rocksdb::Log(rocksdb::InfoLogLevel::ERROR_LEVEL, logger,
                     "uint32 value corruption, size: %zu > %zu",
-                    value.size(), sizeof (uint32_t));
+                    value.size(), sizeof (int));
         }
 
         return result;
@@ -653,7 +653,7 @@ static void book_insert(const char file_name[], const char leveldb_file_name[]) 
 
     rocksdb::Options options;
     options.create_if_missing = true;
-//    options.merge_operator.reset(new UInt32AddOperator);
+    options.merge_operator.reset(new UInt32AddOperator);
 
     //       MergeBasedCounters counters(db);
 
@@ -667,8 +667,8 @@ static void book_insert(const char file_name[], const char leveldb_file_name[]) 
         options.max_background_compactions = concurrentThreadsSupported;
     }
     rocksdb::Status status = rocksdb::DB::Open(options, leveldb_file_name, &db);
-//    std::shared_ptr<rocksdb::DB> dc (db);
-//    MergeBasedCounters counters(dc);
+    std::shared_ptr<rocksdb::DB> dc (db);
+    MergeBasedCounters counters(dc);
 //        counters.add("a", 1);
     std::cout << leveldb_file_name << "\n";
     //       assert(status.ok());
@@ -753,7 +753,7 @@ static void book_insert(const char file_name[], const char leveldb_file_name[]) 
 
         //      TODO: Make it mem efficient
 
-        if (game_nb % 100000 == 0) {
+        if (game_nb % 10000 == 0) {
             if (leveldb_file_name != NULL) {
                 printf("\nPutting games into leveldb..");
                 rocksdb::WriteBatch batch;
@@ -777,6 +777,7 @@ static void book_insert(const char file_name[], const char leveldb_file_name[]) 
                         game_id_stream << *it << ",";
                     }
 
+                    currentValue.clear();
                     s = db->Get(readOptions, std::to_string(Book->entry[pos].key) + "_moves", &currentValue);
                     if (s.ok()) {
                         //                    cout << "OK..";
@@ -798,27 +799,41 @@ static void book_insert(const char file_name[], const char leveldb_file_name[]) 
                     batch.Put(std::to_string(Book->entry[pos].key), game_id_stream.str());
                     batch.Put(std::to_string(Book->entry[pos].key) + "_moves", move_stream.str());
 
-                    s = db->Get(readOptions, std::to_string(Book->entry[pos].key) + "_freq", &currentValue);
-                    if (s.ok()) {
-                        Book->entry[pos].n += std::stoi(currentValue);
-                    }
-                    s = db->Get(readOptions, std::to_string(Book->entry[pos].key) + "_white_score", &currentValue);
-                    if (s.ok()) {
-                        Book->entry[pos].white_score += std::stoi(currentValue);
-                    }
-                    s = db->Get(readOptions, std::to_string(Book->entry[pos].key) + "_draws", &currentValue);
-                    if (s.ok()) {
-                        Book->entry[pos].draws += std::stoi(currentValue);
-                    }
+//                    currentValue.clear();
+//                    s = db->Get(readOptions, std::to_string(Book->entry[pos].key) + "_freq", &currentValue);
+//                    if (s.ok()) {
+////                        cout << "Current Value FREQ: " << currentValue << "\n";
+//
+//                        Book->entry[pos].n += std::stoi(currentValue);
+//                    }
+//                    
+//                    currentValue.clear();
+//                    s = db->Get(readOptions, std::to_string(Book->entry[pos].key) + "_white_score", &currentValue);
+//                    if (s.ok()) {
+////                        cout << "White score : "<<Book->entry[pos].white_score << "\n";
+////                        cout << "Current Value White Score: " << currentValue << "\n";
+//
+//                        Book->entry[pos].white_score += std::stoi(currentValue);
+//                    }
+//                    
+//                    currentValue.clear();
+//                    s = db->Get(readOptions, std::to_string(Book->entry[pos].key) + "_draws", &currentValue);
+//                    if (s.ok()) {
+////                        cout << "Current Value DRAWS: " << currentValue << "\n";
+//
+//                        Book->entry[pos].draws += std::stoi(currentValue);
+//                    }
                     
                     
-//                    counters.add((std::to_string(Book->entry[pos].key) + "_freq"), Book->entry[pos].n);
-//                    counters.add((std::to_string(Book->entry[pos].key) + "_white_score"), Book->entry[pos].white_score);
-//                    counters.add((std::to_string(Book->entry[pos].key) + "_draws"), Book->entry[pos].draws);
+                    counters.add((std::to_string(Book->entry[pos].key) + "_freq"), Book->entry[pos].n);
+                    counters.add((std::to_string(Book->entry[pos].key) + "_white_score"), Book->entry[pos].white_score);
+                    counters.add((std::to_string(Book->entry[pos].key) + "_draws"), Book->entry[pos].draws);
                     
-                    batch.Put(std::to_string(Book->entry[pos].key) + "_freq", std::to_string(Book->entry[pos].n));
-                    batch.Put(std::to_string(Book->entry[pos].key) + "_white_score", std::to_string(Book->entry[pos].white_score));
-                    batch.Put(std::to_string(Book->entry[pos].key) + "_draws", std::to_string(Book->entry[pos].draws));;
+//                    batch.Put(std::to_string(Book->entry[pos].key) + "_freq", std::to_string(Book->entry[pos].n));
+                    
+//                    cout << "White score inserted.. " << Book->entry[pos].white_score << "\n";
+//                    batch.Put(std::to_string(Book->entry[pos].key) + "_white_score", std::to_string(Book->entry[pos].white_score));
+//                    batch.Put(std::to_string(Book->entry[pos].key) + "_draws", std::to_string(Book->entry[pos].draws));;
 
 
 
@@ -881,28 +896,28 @@ static void book_insert(const char file_name[], const char leveldb_file_name[]) 
             batch.Put(std::to_string(Book->entry[pos].key) + "_moves", move_stream.str());
 
 
-            s = db->Get(readOptions, std::to_string(Book->entry[pos].key) + "_freq", &currentValue);
-            if (s.ok()) {
-                Book->entry[pos].n += std::stoi(currentValue);
-            }
-            s = db->Get(readOptions, std::to_string(Book->entry[pos].key) + "_white_score", &currentValue);
-            if (s.ok()) {
-                Book->entry[pos].white_score += std::stoi(currentValue);
-            }
-            s = db->Get(readOptions, std::to_string(Book->entry[pos].key) + "_draws", &currentValue);
-            if (s.ok()) {
-                Book->entry[pos].draws += std::stoi(currentValue);
-            }
-
-            batch.Put(std::to_string(Book->entry[pos].key) + "_freq", std::to_string(Book->entry[pos].n));
-            batch.Put(std::to_string(Book->entry[pos].key) + "_white_score", std::to_string(Book->entry[pos].white_score));
-            batch.Put(std::to_string(Book->entry[pos].key) + "_draws", std::to_string(Book->entry[pos].draws));
-            
+//            s = db->Get(readOptions, std::to_string(Book->entry[pos].key) + "_freq", &currentValue);
+//            if (s.ok()) {
+//                Book->entry[pos].n += std::stoi(currentValue);
+//            }
+//            s = db->Get(readOptions, std::to_string(Book->entry[pos].key) + "_white_score", &currentValue);
+//            if (s.ok()) {
+//                Book->entry[pos].white_score += std::stoi(currentValue);
+//            }
+//            s = db->Get(readOptions, std::to_string(Book->entry[pos].key) + "_draws", &currentValue);
+//            if (s.ok()) {
+//                Book->entry[pos].draws += std::stoi(currentValue);
+//            }
+//
+//            batch.Put(std::to_string(Book->entry[pos].key) + "_freq", std::to_string(Book->entry[pos].n));
+//            batch.Put(std::to_string(Book->entry[pos].key) + "_white_score", std::to_string(Book->entry[pos].white_score));
+//            batch.Put(std::to_string(Book->entry[pos].key) + "_draws", std::to_string(Book->entry[pos].draws));
+//            
             
                     
-//            counters.add((std::to_string(Book->entry[pos].key) + "_freq"), Book->entry[pos].n);
-//            counters.add((std::to_string(Book->entry[pos].key) + "_white_score"), Book->entry[pos].white_score);
-//            counters.add((std::to_string(Book->entry[pos].key) + "_draws"), Book->entry[pos].draws);
+            counters.add((std::to_string(Book->entry[pos].key) + "_freq"), Book->entry[pos].n);
+            counters.add((std::to_string(Book->entry[pos].key) + "_white_score"), Book->entry[pos].white_score);
+            counters.add((std::to_string(Book->entry[pos].key) + "_draws"), Book->entry[pos].draws);
                     
 
         }
@@ -912,9 +927,13 @@ static void book_insert(const char file_name[], const char leveldb_file_name[]) 
         db->Write(rocksdb::WriteOptions(), &batch);
         batch.Clear();
 
+
         db->Put(writeOptions, "total_game_count", std::to_string(game_nb + 1));
         db->Put(writeOptions, "pgn_filename", file_name);
-        delete db;
+
+//        delete db;
+//                                cout << "Before clearing book";
+
     }
 
     return;
