@@ -64,7 +64,7 @@ static enum STORAGE {
 } Storage;
 
 static book_t Book[1];
-//static leveldb::DB *BookLevelDb;
+//static rocksdb::DB *BookLevelDb;
 
 // prototypes
 
@@ -89,6 +89,207 @@ static void write_integer(FILE * file, int size, uint64 n);
 
 // functions
 // book_make()
+// Imagine we are maintaining a set of uint32 counters. Example taken from rocksdb merge example
+// Each counter has a distinct name. And we would like
+// to support four high level operations:
+// set, add, get and remove
+// This is a quick implementation without a Merge operation.
+
+class Counters {
+protected:
+    std::shared_ptr<rocksdb::DB> db_;
+
+    rocksdb::WriteOptions put_option_;
+    rocksdb::ReadOptions get_option_;
+    rocksdb::WriteOptions delete_option_;
+
+    int default_;
+
+public:
+
+    explicit Counters(std::shared_ptr<rocksdb::DB> db, int defaultCount = 0)
+    : db_(db),
+    put_option_(),
+    get_option_(),
+    delete_option_(),
+    default_(defaultCount) {
+        assert(db_);
+    }
+
+    virtual ~Counters() {
+    }
+
+    // public interface of Counters.
+    // All four functions return false
+    // if the underlying level db operation failed.
+
+    // mapped to a levedb Put
+
+    bool set(const string& key, int value) {
+        // just treat the internal rep of int32 as the string
+        rocksdb::Slice slice((char *) &value, sizeof (value));
+        auto s = db_->Put(put_option_, key, slice);
+
+        if (s.ok()) {
+            return true;
+        } else {
+            cerr << s.ToString() << endl;
+            return false;
+        }
+    }
+
+    // mapped to a rocksdb Delete
+
+    bool remove(const string& key) {
+        auto s = db_->Delete(delete_option_, key);
+
+        if (s.ok()) {
+            return true;
+        } else {
+            cerr << s.ToString() << std::endl;
+            return false;
+        }
+    }
+
+    // mapped to a rocksdb Get
+
+    bool get(const string& key, int *value) {
+        string str;
+        auto s = db_->Get(get_option_, key, &str);
+
+        if (s.IsNotFound()) {
+            // return default value if not found;
+            *value = default_;
+            return true;
+        } else if (s.ok()) {
+            // deserialization
+            if (str.size() != sizeof (int)) {
+                cerr << "value corruption\n";
+                return false;
+            }
+            *value = rocksdb::DecodeFixed32(&str[0]);
+            return true;
+        } else {
+            cerr << s.ToString() << std::endl;
+            return false;
+        }
+    }
+
+    // 'add' is implemented as get -> modify -> set
+    // An alternative is a single merge operation, see MergeBasedCounters
+
+    virtual bool add(const string& key, int value) {
+        int base = default_;
+        return get(key, &base) && set(key, base + value);
+    }
+
+
+    // convenience functions for testing
+
+    void assert_set(const string& key, int value) {
+        assert(set(key, value));
+    }
+
+    void assert_remove(const string& key) {
+        assert(remove(key));
+    }
+
+    int assert_get(const string& key) {
+        int value = default_;
+        int result = get(key, &value);
+        assert(result);
+        if (result == 0) exit(1); // Disable unused variable warning.
+        return value;
+    }
+
+    void assert_add(const string& key, int value) {
+        int result = add(key, value);
+        assert(result);
+        if (result == 0) exit(1); // Disable unused variable warning.
+    }
+};
+
+// Implement 'add' directly with the new Merge operation
+
+class MergeBasedCounters : public Counters {
+private:
+    rocksdb::WriteOptions merge_option_; // for merge
+
+public:
+
+    explicit MergeBasedCounters(std::shared_ptr<rocksdb::DB> db, int defaultCount = 0)
+    : Counters(db, defaultCount),
+    merge_option_() {
+    }
+
+    // mapped to a rocksdb Merge operation
+
+    virtual bool add(const string& key, int value) override {
+        char encoded[sizeof (int)];
+        rocksdb::EncodeFixed32(encoded, value);
+        rocksdb::Slice slice(encoded, sizeof (int));
+        auto s = db_->Merge(merge_option_, key, slice);
+
+        if (s.ok()) {
+            return true;
+        } else {
+            cerr << s.ToString() << endl;
+            return false;
+        }
+    }
+};
+
+
+// A 'model' merge operator with uint64 addition semantics
+// Implemented as an AssociativeMergeOperator for simplicity and example.
+
+class UInt32AddOperator : public rocksdb::AssociativeMergeOperator {
+public:
+
+    virtual bool Merge(const rocksdb::Slice& key,
+            const rocksdb::Slice* existing_value,
+            const rocksdb::Slice& value,
+            std::string* new_value,
+            rocksdb::Logger* logger) const override {
+        int orig_value = 0;
+        if (existing_value) {
+            orig_value = DecodeInteger32(*existing_value, logger);
+        }
+        int operand = DecodeInteger32(value, logger);
+
+        assert(new_value);
+        new_value->clear();
+
+        rocksdb::PutFixed32(new_value, orig_value + operand);
+
+        return true; // Return true always since corruption will be treated as 0
+    }
+
+    virtual const char* Name() const override {
+        return "UInt32AddOperator";
+    }
+
+private:
+    // Takes the string and decodes it into a uint64_t
+    // On error, prints a message and returns 0
+
+    int DecodeInteger32(const rocksdb::Slice& value, rocksdb::Logger* logger) const {
+        int result = 0;
+
+        if (value.size() == sizeof (int)) {
+            result = std::atoi(value.data());
+        } else if (logger != nullptr) {
+            // If value is corrupted, treat it as 0
+            rocksdb::Log(rocksdb::InfoLogLevel::ERROR_LEVEL, logger,
+                    "uint32 value corruption, size: %zu > %zu",
+                    value.size(), sizeof (int));
+        }
+
+        return result;
+    }
+
+};
+
 
 void book_make(int argc, char * argv[]) {
 
@@ -229,9 +430,9 @@ static std::string game_info_to_string(const char* a, int i, const char* b) {
 static void book_clear() {
 
     //  if (Storage == LEVELDB) {
-    //      leveldb::Options options;
+    //      rocksdb::Options options;
     //      options.create_if_missing = true;
-    //      leveldb::DB::Open(options, bin_file, &BookLevelDb);
+    //      rocksdb::DB::Open(options, bin_file, &BookLevelDb);
     //    }
     //  else {
     int index;
@@ -250,12 +451,12 @@ static void book_clear() {
 }
 
 
-static void insert_into_leveldb(leveldb::DB* db) {
+static void insert_into_leveldb(rocksdb::DB* db, MergeBasedCounters counters) {
     printf("\nPutting games into leveldb..");
-    leveldb::WriteBatch batch;
+    rocksdb::WriteBatch batch;
 
-    leveldb::WriteOptions writeOptions;
-    leveldb::ReadOptions readOptions;
+    rocksdb::WriteOptions writeOptions;
+    rocksdb::ReadOptions readOptions;
 
 //                writeOptions.disableWAL = true;
 
@@ -264,75 +465,70 @@ static void insert_into_leveldb(leveldb::DB* db) {
         std::stringstream game_id_stream;
 
         std::string currentValue;
-        leveldb::Status s = db->Get(readOptions, std::to_string(Book->entry[pos].key), &currentValue);
-        if (s.ok()) {
-            game_id_stream << currentValue;
-        }
+//        rocksdb::Status s = db->Get(readOptions, std::to_string(Book->entry[pos].key), &currentValue);
+//        if (s.ok()) {
+//            game_id_stream << currentValue;
+//        }
 
         for (set<int>::iterator it = Book->entry[pos].game_ids->begin(); it != Book->entry[pos].game_ids->end(); ++it) {
-            game_id_stream << *it << ",";
+            batch.Put(std::to_string(Book->entry[pos].key).append("_").append(std::to_string(*it)), "");
+
+//            game_id_stream << *it << ",";
         }
 
-        s = db->Get(readOptions, std::to_string(Book->entry[pos].key) + "_moves", &currentValue);
-        if (s.ok()) {
-            //                    cout << "OK..";
-            //                    cout << currentValue;
-            std::istringstream ss(currentValue);
-            std::string token;
+//        s = db->Get(readOptions, std::to_string(Book->entry[pos].key) + "_moves", &currentValue);
+//        if (s.ok()) {
+//            //                    cout << "OK..";
+//            //                    cout << currentValue;
+//            std::istringstream ss(currentValue);
+//            std::string token;
+//
+//            while (std::getline(ss, token, ',')) {
+//                Book->entry[pos].moves->insert(std::stoi(token));
+//            }
+//        }
 
-            while (std::getline(ss, token, ',')) {
-                Book->entry[pos].moves->insert(std::stoi(token));
-            }
-        }
-
-        std::stringstream move_stream;
+//        std::stringstream move_stream;
         for (set<uint16>::iterator it = Book->entry[pos].moves->begin(); it != Book->entry[pos].moves->end(); ++it) {
-            move_stream << *it << ",";
+            batch.Put(string("moves_").append(std::to_string(Book->entry[pos].key)).append("_").append(std::to_string(*it)), "");
         }
 
 
-        batch.Put(std::to_string(Book->entry[pos].key), game_id_stream.str());
-        batch.Put(std::to_string(Book->entry[pos].key) + "_moves", move_stream.str());
+//        batch.Put(std::to_string(Book->entry[pos].key), game_id_stream.str());
+//        batch.Put(std::to_string(Book->entry[pos].key) + "_moves", move_stream.str());
 
-        s = db->Get(readOptions, std::to_string(Book->entry[pos].key) + "_freq", &currentValue);
-        if (s.ok()) {
-//                        cout << "Current Value FREQ: " << currentValue << "\n";
-
-            Book->entry[pos].n += std::stoi(currentValue);
-        }
-
-        s = db->Get(readOptions, std::to_string(Book->entry[pos].key) + "_white_score", &currentValue);
-        if (s.ok()) {
-//                        cout << "White score : "<<Book->entry[pos].white_score << "\n";
-//                        cout << "Current Value White Score: " << currentValue << "\n";
-
-            Book->entry[pos].white_score += std::stoi(currentValue);
-        }
-
-        s = db->Get(readOptions, std::to_string(Book->entry[pos].key) + "_draws", &currentValue);
-        if (s.ok()) {
-//                        cout << "Current Value DRAWS: " << currentValue << "\n";
-
-            Book->entry[pos].draws += std::stoi(currentValue);
-        }
+//        rocksdb::Status s = db->Get(readOptions, std::to_string(Book->entry[pos].key) + "_freq", &currentValue);
+//        if (s.ok()) {
+////                        cout << "Current Value FREQ: " << currentValue << "\n";
+//
+//            Book->entry[pos].n += std::stoi(currentValue);
+//        }
+//
+//        s = db->Get(readOptions, std::to_string(Book->entry[pos].key) + "_white_score", &currentValue);
+//        if (s.ok()) {
+//            Book->entry[pos].white_score += std::stoi(currentValue);
+//        }
+//
+//        s = db->Get(readOptions, std::to_string(Book->entry[pos].key) + "_draws", &currentValue);
+//        if (s.ok()) {
+//            Book->entry[pos].draws += std::stoi(currentValue);
+//        }
 
 //                    setCounters.add((std::to_string(Book->entry[pos].key)), game_id_stream.str());
 //                    
-//                    counters.add((std::to_string(Book->entry[pos].key) + "_freq"), Book->entry[pos].n);
-//                    counters.add((std::to_string(Book->entry[pos].key) + "_white_score"), Book->entry[pos].white_score);
-//                    counters.add((std::to_string(Book->entry[pos].key) + "_draws"), Book->entry[pos].draws);
+        counters.add((std::to_string(Book->entry[pos].key) + "_freq"), Book->entry[pos].n);
+        counters.add((std::to_string(Book->entry[pos].key) + "_white_score"), Book->entry[pos].white_score);
+        counters.add((std::to_string(Book->entry[pos].key) + "_draws"), Book->entry[pos].draws);
 //                    
-        batch.Put(std::to_string(Book->entry[pos].key) + "_freq", std::to_string(Book->entry[pos].n));
-
-//                    cout << "White score inserted.. " << Book->entry[pos].white_score << "\n";
-        batch.Put(std::to_string(Book->entry[pos].key) + "_white_score", std::to_string(Book->entry[pos].white_score));
-        batch.Put(std::to_string(Book->entry[pos].key) + "_draws", std::to_string(Book->entry[pos].draws));;
+//        batch.Put(std::to_string(Book->entry[pos].key) + "_freq", std::to_string(Book->entry[pos].n));
+//        batch.Put(std::to_string(Book->entry[pos].key) + "_white_score", std::to_string(Book->entry[pos].white_score));
+//        batch.Put(std::to_string(Book->entry[pos].key) + "_draws", std::to_string(Book->entry[pos].draws));;
 
     }
     //            batch.Clear();
     book_clear();
 
-    db->Write(leveldb::WriteOptions(), &batch);
+    db->Write(rocksdb::WriteOptions(), &batch);
     batch.Clear();
 }
 
@@ -348,34 +544,35 @@ static void book_insert(const char file_name[], const char leveldb_file_name[]) 
     char string[256];
     int move;
     int pos;
-    leveldb::WriteOptions writeOptions;
+    rocksdb::WriteOptions writeOptions;
 
 
-    leveldb::DB* db;
+    rocksdb::DB* db;
     ASSERT(file_name != NULL);
 
 
 //    if (leveldb_file_name != NULL) {
 
-    leveldb::Options options;
+    rocksdb::Options options;
+    options.max_open_files = 100000;
     options.create_if_missing = true;
-//    options.merge_operator.reset(new UInt32AddOperator);
+    options.merge_operator.reset(new UInt32AddOperator);
 //    options.merge_operator.reset(new SetAddOperator);
 
-    //       MergeBasedCounters counters(db);
+//           MergeBasedCounters counters(db);
 
-//    unsigned concurrentThreadsSupported = std::thread::hardware_concurrency();
-//    if (concurrentThreadsSupported != 0) {
-//        // Adjust for hyperthreading
-//        if (concurrentThreadsSupported >= 4) {
-//            concurrentThreadsSupported /= 2;
-//        }
-//        cout << "Using " << concurrentThreadsSupported << " threads\n";
-//        options.max_background_compactions = concurrentThreadsSupported;
-//    }
-    leveldb::Status status = leveldb::DB::Open(options, leveldb_file_name, &db);
-//    std::shared_ptr<leveldb::DB> dc (db);
-//    MergeBasedCounters counters(dc);
+    unsigned concurrentThreadsSupported = std::thread::hardware_concurrency();
+    if (concurrentThreadsSupported != 0) {
+        // Adjust for hyperthreading
+        if (concurrentThreadsSupported >= 4) {
+            concurrentThreadsSupported /= 2;
+        }
+        cout << "Using " << concurrentThreadsSupported << " threads\n";
+        options.max_background_compactions = concurrentThreadsSupported;
+    }
+    rocksdb::Status status = rocksdb::DB::Open(options, leveldb_file_name, &db);
+    std::shared_ptr<rocksdb::DB> dc (db);
+    MergeBasedCounters counters(dc);
 //    MergeBasedSetCounters setCounters(dc, set<int>());
 //        counters.add("a", 1);
     std::cout << leveldb_file_name << "\n";
@@ -461,7 +658,7 @@ static void book_insert(const char file_name[], const char leveldb_file_name[]) 
 
         if (game_nb % 100000 == 0) {
             if (leveldb_file_name != NULL) {
-                insert_into_leveldb(db);
+                insert_into_leveldb(db, counters);
             }
         }
     }
@@ -472,11 +669,11 @@ static void book_insert(const char file_name[], const char leveldb_file_name[]) 
     if (leveldb_file_name == NULL) {
         printf("%d entries.\n", Book->size);
     } else {
-        insert_into_leveldb(db);
+        insert_into_leveldb(db, counters);
         db->Put(writeOptions, "total_game_count", std::to_string(game_nb + 1));
         db->Put(writeOptions, "pgn_filename", file_name);
 
-        delete db;
+//        delete db;
 
     }
 
@@ -519,13 +716,13 @@ static void book_insert(const char file_name[], const char leveldb_file_name[]) 
 //   FILE * file;
 //   int pos;
 //
-//   leveldb::WriteOptions writeOptions = leveldb::WriteOptions();
-//   leveldb::DB* BookLevelDb;
+//   rocksdb::WriteOptions writeOptions = rocksdb::WriteOptions();
+//   rocksdb::DB* BookLevelDb;
 //
 //    if (leveldb_file != NULL) {
-//        leveldb::Options options;
+//        rocksdb::Options options;
 //        options.create_if_missing = true;
-//        leveldb::Status status = leveldb::DB::Open(options, leveldb_file, &BookLevelDb);
+//        rocksdb::Status status = rocksdb::DB::Open(options, leveldb_file, &BookLevelDb);
 //        assert(status.ok());
 //    }
 //   
@@ -541,7 +738,7 @@ static void book_insert(const char file_name[], const char leveldb_file_name[]) 
 //        if (leveldb_file != NULL) {
 //            std::stringstream game_id_stream;
 //            std::string currentValue;
-//            leveldb::Status s = BookLevelDb->Get(leveldb::ReadOptions(), uint64_to_string(Book->entry[pos].key), &currentValue);
+//            rocksdb::Status s = BookLevelDb->Get(rocksdb::ReadOptions(), uint64_to_string(Book->entry[pos].key), &currentValue);
 //            if (s.ok()) {
 //                 game_id_stream << currentValue;
 //            }
