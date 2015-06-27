@@ -11,6 +11,7 @@
 #include <set>  
 #include <iostream>
 #include <sstream>
+#include <iomanip>
 
 
 #include "board.h"
@@ -250,7 +251,7 @@ static void book_clear() {
 }
 
 
-static void insert_into_leveldb(leveldb::DB* db) {
+static void insert_into_leveldb(leveldb::DB* db, int passNumber) {
     printf("\nPutting games into leveldb..");
     leveldb::WriteBatch batch;
 
@@ -261,60 +262,61 @@ static void insert_into_leveldb(leveldb::DB* db) {
 
     for (int pos = 0; pos < Book->size; pos++) {
 
-        std::stringstream game_id_stream;
-
-        std::string currentValue;
-        leveldb::Status s = db->Get(readOptions, std::to_string(Book->entry[pos].key), &currentValue);
-        if (s.ok()) {
-            game_id_stream << currentValue;
+        if (pos % 100000 == 0) {
+//            cout << "pos : "<< pos<< " total: "<<Book->size;
+            cout << "\n "<< setprecision(4) << pos*100.0/Book->size<< " %";
         }
-
+        
+        std::stringstream game_id_stream;
+        std::string currentValue;
+//        leveldb::Status s = db->Get(readOptions, std::to_string(Book->entry[pos].key), &currentValue);
+//        if (s.ok()) {
+//            game_id_stream << currentValue;
+//        }
+                
         for (set<int>::iterator it = Book->entry[pos].game_ids->begin(); it != Book->entry[pos].game_ids->end(); ++it) {
             game_id_stream << *it << ",";
         }
 
-        s = db->Get(readOptions, std::to_string(Book->entry[pos].key) + "_moves", &currentValue);
-        if (s.ok()) {
+//        s = db->Get(readOptions, std::to_string(Book->entry[pos].key) + "_moves", &currentValue);
+//        if (s.ok()) {
             //                    cout << "OK..";
             //                    cout << currentValue;
-            std::istringstream ss(currentValue);
-            std::string token;
+//            std::istringstream ss(currentValue);
+//            std::string token;
 
-            while (std::getline(ss, token, ',')) {
-                Book->entry[pos].moves->insert(std::stoi(token));
-            }
-        }
+//            while (std::getline(ss, token, ',')) {
+//                Book->entry[pos].moves->insert(std::stoi(token));
+//            }
+//        }
 
         std::stringstream move_stream;
         for (set<uint16>::iterator it = Book->entry[pos].moves->begin(); it != Book->entry[pos].moves->end(); ++it) {
             move_stream << *it << ",";
         }
 
+        batch.Put(std::to_string(Book->entry[pos].key)+"_p_"+std::to_string(passNumber), game_id_stream.str());
+        batch.Put(std::to_string(Book->entry[pos].key) + "_moves_p_"+std::to_string(passNumber), move_stream.str());
 
-        batch.Put(std::to_string(Book->entry[pos].key), game_id_stream.str());
-        batch.Put(std::to_string(Book->entry[pos].key) + "_moves", move_stream.str());
-
-        s = db->Get(readOptions, std::to_string(Book->entry[pos].key) + "_freq", &currentValue);
-        if (s.ok()) {
-//                        cout << "Current Value FREQ: " << currentValue << "\n";
-
-            Book->entry[pos].n += std::stoi(currentValue);
-        }
-
-        s = db->Get(readOptions, std::to_string(Book->entry[pos].key) + "_white_score", &currentValue);
-        if (s.ok()) {
-//                        cout << "White score : "<<Book->entry[pos].white_score << "\n";
-//                        cout << "Current Value White Score: " << currentValue << "\n";
-
-            Book->entry[pos].white_score += std::stoi(currentValue);
-        }
-
-        s = db->Get(readOptions, std::to_string(Book->entry[pos].key) + "_draws", &currentValue);
-        if (s.ok()) {
-//                        cout << "Current Value DRAWS: " << currentValue << "\n";
-
-            Book->entry[pos].draws += std::stoi(currentValue);
-        }
+//        s = db->Get(readOptions, std::to_string(Book->entry[pos].key) + "_freq", &currentValue);
+//        if (s.ok()) {
+//            Book->entry[pos].n += std::stoi(currentValue);
+//        }
+//
+//        s = db->Get(readOptions, std::to_string(Book->entry[pos].key) + "_white_score", &currentValue);
+//        if (s.ok()) {
+////                        cout << "White score : "<<Book->entry[pos].white_score << "\n";
+////                        cout << "Current Value White Score: " << currentValue << "\n";
+//
+//            Book->entry[pos].white_score += std::stoi(currentValue);
+//        }
+//
+//        s = db->Get(readOptions, std::to_string(Book->entry[pos].key) + "_draws", &currentValue);
+//        if (s.ok()) {
+////                        cout << "Current Value DRAWS: " << currentValue << "\n";
+//
+//            Book->entry[pos].draws += std::stoi(currentValue);
+//        }
 
 //                    setCounters.add((std::to_string(Book->entry[pos].key)), game_id_stream.str());
 //                    
@@ -322,11 +324,9 @@ static void insert_into_leveldb(leveldb::DB* db) {
 //                    counters.add((std::to_string(Book->entry[pos].key) + "_white_score"), Book->entry[pos].white_score);
 //                    counters.add((std::to_string(Book->entry[pos].key) + "_draws"), Book->entry[pos].draws);
 //                    
-        batch.Put(std::to_string(Book->entry[pos].key) + "_freq", std::to_string(Book->entry[pos].n));
-
-//                    cout << "White score inserted.. " << Book->entry[pos].white_score << "\n";
-        batch.Put(std::to_string(Book->entry[pos].key) + "_white_score", std::to_string(Book->entry[pos].white_score));
-        batch.Put(std::to_string(Book->entry[pos].key) + "_draws", std::to_string(Book->entry[pos].draws));;
+        batch.Put(std::to_string(Book->entry[pos].key) + "_freq_p_"+std::to_string(passNumber), std::to_string(Book->entry[pos].n));
+        batch.Put(std::to_string(Book->entry[pos].key) + "_white_score_p_"+std::to_string(passNumber), std::to_string(Book->entry[pos].white_score));
+        batch.Put(std::to_string(Book->entry[pos].key) + "_draws_p_"+std::to_string(passNumber), std::to_string(Book->entry[pos].draws));
 
     }
     //            batch.Clear();
@@ -348,10 +348,11 @@ static void book_insert(const char file_name[], const char leveldb_file_name[]) 
     char string[256];
     int move;
     int pos;
+    int passNumber = 0;
     leveldb::WriteOptions writeOptions;
 
-
     leveldb::DB* db;
+    
     ASSERT(file_name != NULL);
 
 
@@ -461,7 +462,8 @@ static void book_insert(const char file_name[], const char leveldb_file_name[]) 
 
         if (game_nb % 100000 == 0) {
             if (leveldb_file_name != NULL) {
-                insert_into_leveldb(db);
+                insert_into_leveldb(db, passNumber);
+                ++passNumber;
             }
         }
     }
@@ -472,9 +474,10 @@ static void book_insert(const char file_name[], const char leveldb_file_name[]) 
     if (leveldb_file_name == NULL) {
         printf("%d entries.\n", Book->size);
     } else {
-        insert_into_leveldb(db);
+        insert_into_leveldb(db, passNumber);
         db->Put(writeOptions, "total_game_count", std::to_string(game_nb + 1));
         db->Put(writeOptions, "pgn_filename", file_name);
+        db->Put(writeOptions, "numPasses",  std::to_string(passNumber));
 
         delete db;
 
