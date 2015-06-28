@@ -117,9 +117,7 @@ void book_make(int argc, char * argv[]) {
 
     for (i = 1; i < argc; i++) {
 
-        if (false) {
-
-        } else if (my_string_equal(argv[i], "make-book")) {
+        if (my_string_equal(argv[i], "make-book")) {
 
             // skip
 
@@ -238,12 +236,12 @@ static void book_clear() {
     int index;
 
     Book->alloc = 1;
-    Book->mask = (Book->alloc * 2) - 1;
+    Book->mask = (uint32) ((Book->alloc * 2) - 1);
 
-    Book->entry = (entry_t *) my_malloc(Book->alloc * sizeof (entry_t));
+    Book->entry = (entry_t *) my_malloc((int) (Book->alloc * sizeof (entry_t)));
     Book->size = 0;
 
-    Book->hash = (sint32 *) my_malloc((Book->alloc * 2) * sizeof (sint32));
+    Book->hash = (sint32 *) my_malloc((int) ((Book->alloc * 2) * sizeof (sint32)));
     for (index = 0; index < Book->alloc * 2; index++) {
         Book->hash[index] = NIL;
     }
@@ -395,8 +393,7 @@ static void book_insert(const char file_name[], const char leveldb_file_name[]) 
         result = 0;
         draw = 0;
 
-        if (false) {
-        } else if (my_string_equal(pgn->result, "1-0")) {
+        if (my_string_equal(pgn->result, "1-0")) {
             result = +1;
         } else if (my_string_equal(pgn->result, "0-1")) {
             result = -1;
@@ -445,7 +442,7 @@ static void book_insert(const char file_name[], const char leveldb_file_name[]) 
                 Book->entry[pos].white_score += result;
                 Book->entry[pos].draws += draw;
 
-                Book->entry[pos].moves->insert(move);
+                Book->entry[pos].moves->insert((const unsigned short &) move);
                 Book->entry[pos].game_ids->insert(game_nb);
 
                 move_do(board, move);
@@ -594,7 +591,7 @@ static int find_entry(const board_t * board) {
     // search
 
     //  if (Storage==POLYGLOT) {
-    for (index = key & Book->mask; (pos = Book->hash[index]) != NIL; index = (index + 1) & Book->mask) {
+    for (index = (int) (key & Book->mask); (pos = Book->hash[index]) != NIL; index = (index + 1) & Book->mask) {
 
         ASSERT(pos >= 0 && pos < Book->size);
 
@@ -616,7 +613,7 @@ static int find_entry(const board_t * board) {
 
         resize();
 
-        for (index = key & Book->mask; Book->hash[index] != NIL; index = (index + 1) & Book->mask)
+        for (index = (int) (key & Book->mask); Book->hash[index] != NIL; index = (index + 1) & Book->mask)
             ;
     }
 
@@ -633,7 +630,7 @@ static int find_entry(const board_t * board) {
     Book->entry[pos].draws = 0;
 
     Book->entry[pos].game_ids = new set<int>();
-    Book->entry[pos].colour = board->turn;
+    Book->entry[pos].colour = (uint16) board->turn;
 
     // insert into the hash table
 
@@ -658,7 +655,7 @@ static void resize() {
     ASSERT(Book->size == Book->alloc);
 
     Book->alloc *= 2;
-    Book->mask = (Book->alloc * 2) - 1;
+    Book->mask = (uint32) ((Book->alloc * 2) - 1);
 
     size = 0;
     size += Book->alloc * sizeof (entry_t);
@@ -668,8 +665,8 @@ static void resize() {
 
     // resize arrays
 
-    Book->entry = (entry_t *) my_realloc(Book->entry, Book->alloc * sizeof (entry_t));
-    Book->hash = (sint32 *) my_realloc(Book->hash, (Book->alloc * 2) * sizeof (sint32));
+    Book->entry = (entry_t *) my_realloc(Book->entry, (int) (Book->alloc * sizeof (entry_t)));
+    Book->hash = (sint32 *) my_realloc(Book->hash, (int) ((Book->alloc * 2) * sizeof (sint32)));
 
     // rebuild hash table
 
@@ -679,7 +676,7 @@ static void resize() {
 
     for (pos = 0; pos < Book->size; pos++) {
 
-        for (index = Book->entry[pos].key & Book->mask; Book->hash[index] != NIL; index = (index + 1) & Book->mask)
+        for (index = (int) (Book->entry[pos].key & Book->mask); Book->hash[index] != NIL; index = (index + 1) & Book->mask)
             ;
 
         ASSERT(index >= 0 && index < Book->alloc * 2);
@@ -696,7 +693,7 @@ static void halve_stats(uint64 key) {
 
     // search
 
-    for (index = key & Book->mask; (pos = Book->hash[index]) != NIL; index = (index + 1) & Book->mask) {
+    for (index = (int) (key & Book->mask); (pos = Book->hash[index]) != NIL; index = (index + 1) & Book->mask) {
 
         ASSERT(pos >= 0 && pos < Book->size);
 
@@ -736,9 +733,8 @@ static bool keep_entry(int pos) {
         return false;
     }
 
-    if (entry_score(entry) == 0) return false; // REMOVE ME?
+    return entry_score(entry) != 0; // REMOVE ME?
 
-    return true;
 }
 
 // entry_score()
@@ -792,7 +788,7 @@ static void write_integer(FILE * file, int size, uint64 n) {
     ASSERT(size == 8 || n >> (size * 8) == 0);
 
     for (i = size - 1; i >= 0; i--) {
-        b = (n >> (i * 8)) & 0xFF;
+        b = (int) ((n >> (i * 8)) & 0xFF);
         ASSERT(b >= 0 && b < 256);
         fputc(b, file);
     }
