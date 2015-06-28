@@ -442,7 +442,7 @@ static void book_insert(const char file_name[], const char leveldb_file_name[]) 
             catch (const std::exception& ex) {
                 WhiteElo = MinElo;
                 BlackElo = MinElo;
-                cout << ex.what() << "\n";
+                //cout << ex.what() << "\n";
 //                cout << "Exception\n ";
             }
 
