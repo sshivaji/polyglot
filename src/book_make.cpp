@@ -55,6 +55,8 @@ struct book_t {
 // variables
 
 static int MaxPly;
+static int MinElo;
+static int NumBatchGames = 100000;
 static int MinGame;
 static double MinScore;
 static bool RemoveWhite, RemoveBlack;
@@ -108,6 +110,7 @@ void book_make(int argc, char * argv[]) {
     my_string_set(&leveldb_file, "game_index.db");
 
     MaxPly = 1024;
+    MinElo = 2400;
     MinGame = 3;
     MinScore = 0.0;
     RemoveWhite = false;
@@ -179,7 +182,21 @@ void book_make(int argc, char * argv[]) {
 
             my_string_set(&leveldb_file, argv[i]);
             Storage = LEVELDB;
-        } else {
+        }
+        else if (my_string_equal(argv[i], "-min-elo")) {
+            i++;
+            if (argv[i] == NULL) my_fatal("book_make(): missing argument min-elo\n");
+            MinElo = (int) atof(argv[i]);
+            ASSERT(MinElo >= 1000 && MinELo <= 3000);
+        }
+        else if (my_string_equal(argv[i], "-num-batch-games")) {
+            i++;
+            if (argv[i] == NULL) my_fatal("book_make(): missing argument num-batch-game\n");
+            NumBatchGames = (int) atof(argv[i]);
+            ASSERT(NumBatchGames >= 1);
+        }
+
+        else {
             my_fatal("book_make(): unknown option \"%s\"\n", argv[i]);
         }
     }
@@ -213,7 +230,7 @@ void book_make(int argc, char * argv[]) {
     //    }
 
 
-    printf("all done!\n");
+    printf("\nall done!\n");
 }
 
 static std::string game_info_to_string(const char* a, int i, const char* b) {
@@ -387,11 +404,15 @@ static void book_insert(const char file_name[], const char leveldb_file_name[]) 
     pgn_open(pgn, file_name);
 
     while (pgn_next_game(pgn)) {
-
+//        cout << "Proecessing game..\n";
+//        cout << "Pgn: " << pgn->white << "\n";
         board_start(board);
         ply = 0;
         result = 0;
         draw = 0;
+        int WhiteElo;
+        int BlackElo;
+        bool skipGame = false;
 
         if (my_string_equal(pgn->result, "1-0")) {
             result = +1;
@@ -406,6 +427,25 @@ static void book_insert(const char file_name[], const char leveldb_file_name[]) 
             std::stringstream game_info;
             game_info << pgn->white;
             game_info << "|" << pgn->whiteelo;
+            try {
+                WhiteElo = std::stoi(pgn->whiteelo);
+                BlackElo = std::stoi(pgn->blackelo);
+//                cout << "White ELO: " << WhiteElo << "\n";
+//                cout << "Black ELO: " << BlackElo << "\n";
+
+                if ((WhiteElo < MinElo) || (BlackElo < MinElo)) {
+//                    cout << "Skipping game..";
+                    skipGame = true;
+                }
+
+            }
+            catch (const std::exception& ex) {
+                WhiteElo = MinElo;
+                BlackElo = MinElo;
+                cout << ex.what() << "\n";
+//                cout << "Exception\n ";
+            }
+
             game_info << "|" << pgn->black;
             game_info << "|" << pgn->blackelo;
             game_info << "|" << pgn->result;
@@ -425,8 +465,7 @@ static void book_insert(const char file_name[], const char leveldb_file_name[]) 
         }
 
         while (pgn_next_move(pgn, string, 256)) {
-
-            if (ply < MaxPly) {
+            if (ply < MaxPly && !skipGame)  {
 
                 move = move_from_san(string, board);
 
@@ -457,7 +496,7 @@ static void book_insert(const char file_name[], const char leveldb_file_name[]) 
 
         }
 
-        if (game_nb % 100000 == 0) {
+        if (game_nb % NumBatchGames == 0) {
             if (leveldb_file_name != NULL) {
                 insert_into_leveldb(db, passNumber);
                 ++passNumber;
@@ -471,6 +510,7 @@ static void book_insert(const char file_name[], const char leveldb_file_name[]) 
     if (leveldb_file_name == NULL) {
         printf("%d entries.\n", Book->size);
     } else {
+        printf("%d entries.\n", Book->size);
         insert_into_leveldb(db, passNumber);
         db->Put(writeOptions, "total_game_count", std::to_string(game_nb + 1));
         db->Put(writeOptions, "pgn_filename", file_name);
@@ -661,7 +701,7 @@ static void resize() {
     size += Book->alloc * sizeof (entry_t);
     size += (Book->alloc * 2) * sizeof (sint32);
 
-    if (size >= 1048576) printf("allocating %gMB ...\n", double(size) / 1048576.0);
+    if (size >= 1048576) printf("\nallocating %gMB ...\n", double(size) / 1048576.0);
 
     // resize arrays
 

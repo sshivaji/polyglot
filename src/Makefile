@@ -37,7 +37,7 @@ LATE_LD_FLAGS = -lleveldb
 #-lrocksdb -lpthread -lz -lbz2 -lsnappy -lleveldb
 # C++
 
-CXXFLAGS += -fno-exceptions -fno-rtti
+CXXFLAGS += -fno-rtti
 
 # optimisation
 
