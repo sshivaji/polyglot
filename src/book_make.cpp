@@ -8,6 +8,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <map>
 #include <set>  
 #include <iostream>
 #include <sstream>
@@ -67,6 +68,8 @@ static enum STORAGE {
 } Storage;
 
 static book_t Book[1];
+static std::map<sint32, entry_t> openingBook;
+
 //static leveldb::DB *BookLevelDb;
 
 // prototypes
@@ -251,23 +254,24 @@ static void book_clear() {
     //    }
     //  else {
 
-    if (Book->size != 0) {
-        std::free(Book->entry);
-        std::free(Book->hash);
-    }
-
-    int index;
-
-    Book->alloc = 1;
-    Book->mask = (uint32) ((Book->alloc * 2) - 1);
-
-    Book->entry = (entry_t *) my_malloc((int) (Book->alloc * sizeof (entry_t)));
-    Book->size = 0;
-
-    Book->hash = (sint32 *) my_malloc((int) ((Book->alloc * 2) * sizeof (sint32)));
-    for (index = 0; index < Book->alloc * 2; index++) {
-        Book->hash[index] = NIL;
-    }
+//    if (Book->size != 0) {
+//        std::free(Book->entry);
+//        std::free(Book->hash);
+//    }
+//
+//    int index;
+//
+//    Book->alloc = 1;
+//    Book->mask = (uint32) ((Book->alloc * 2) - 1);
+//
+//    Book->entry = (entry_t *) my_malloc((int) (Book->alloc * sizeof (entry_t)));
+//    Book->size = 0;
+//
+//    Book->hash = (sint32 *) my_malloc((int) ((Book->alloc * 2) * sizeof (sint32)));
+//    for (index = 0; index < Book->alloc * 2; index++) {
+//        Book->hash[index] = NIL;
+//    }
+    openingBook.clear();
 }
 
 
@@ -279,40 +283,45 @@ static void insert_into_leveldb(leveldb::DB* db, int passNumber) {
     leveldb::ReadOptions readOptions;
 
 //                writeOptions.disableWAL = true;
-
-    for (int pos = 0; pos < Book->size; pos++) {
-
-        if (pos % 100000 == 0) {
-//            cout << "pos : "<< pos<< " total: "<<Book->size;
-            cout << "\n "<< setprecision(4) << pos*100.0/Book->size<< " %";
-        }
-        
-        std::stringstream game_id_stream;
-        std::string currentValue;
-
-        for (set<int>::iterator it = Book->entry[pos].game_ids->begin(); it != Book->entry[pos].game_ids->end(); ++it) {
-            game_id_stream << *it << ",";
-        }
-
-
-        std::stringstream move_stream;
-        for (set<uint16>::iterator it = Book->entry[pos].moves->begin(); it != Book->entry[pos].moves->end(); ++it) {
-            move_stream << *it << ",";
-        }
-
-        batch.Put(std::to_string(Book->entry[pos].key)+"_p_"+std::to_string(passNumber), game_id_stream.str());
-        batch.Put(std::to_string(Book->entry[pos].key) + "_moves_p_"+std::to_string(passNumber), move_stream.str());
-
-//                    counters.add((std::to_string(Book->entry[pos].key) + "_freq"), Book->entry[pos].n);
-//                    counters.add((std::to_string(Book->entry[pos].key) + "_white_score"), Book->entry[pos].white_score);
-//                    counters.add((std::to_string(Book->entry[pos].key) + "_draws"), Book->entry[pos].draws);
-//                    
-        batch.Put(std::to_string(Book->entry[pos].key) + "_freq_p_"+std::to_string(passNumber), std::to_string(Book->entry[pos].n));
-        batch.Put(std::to_string(Book->entry[pos].key) + "_white_score_p_"+std::to_string(passNumber), std::to_string(Book->entry[pos].white_score));
-        batch.Put(std::to_string(Book->entry[pos].key) + "_draws_p_"+std::to_string(passNumber), std::to_string(Book->entry[pos].draws));
-        Book->entry[pos].game_ids->clear();
-        Book->entry[pos].moves->clear();
+    
+    for(auto const &it : openingBook) {
+//        cout << "key: "<< it.first;
+    
     }
+
+//    for (int pos = 0; pos < Book->size; pos++) {
+//
+//        if (pos % 100000 == 0) {
+////            cout << "pos : "<< pos<< " total: "<<Book->size;
+//            cout << "\n "<< setprecision(4) << pos*100.0/Book->size<< " %";
+//        }
+//        
+//        std::stringstream game_id_stream;
+//        std::string currentValue;
+//
+//        for (set<int>::iterator it = Book->entry[pos].game_ids->begin(); it != Book->entry[pos].game_ids->end(); ++it) {
+//            game_id_stream << *it << ",";
+//        }
+//
+//
+//        std::stringstream move_stream;
+//        for (set<uint16>::iterator it = Book->entry[pos].moves->begin(); it != Book->entry[pos].moves->end(); ++it) {
+//            move_stream << *it << ",";
+//        }
+//
+//        batch.Put(std::to_string(Book->entry[pos].key)+"_p_"+std::to_string(passNumber), game_id_stream.str());
+//        batch.Put(std::to_string(Book->entry[pos].key) + "_moves_p_"+std::to_string(passNumber), move_stream.str());
+//
+////                    counters.add((std::to_string(Book->entry[pos].key) + "_freq"), Book->entry[pos].n);
+////                    counters.add((std::to_string(Book->entry[pos].key) + "_white_score"), Book->entry[pos].white_score);
+////                    counters.add((std::to_string(Book->entry[pos].key) + "_draws"), Book->entry[pos].draws);
+////                    
+//        batch.Put(std::to_string(Book->entry[pos].key) + "_freq_p_"+std::to_string(passNumber), std::to_string(Book->entry[pos].n));
+//        batch.Put(std::to_string(Book->entry[pos].key) + "_white_score_p_"+std::to_string(passNumber), std::to_string(Book->entry[pos].white_score));
+//        batch.Put(std::to_string(Book->entry[pos].key) + "_draws_p_"+std::to_string(passNumber), std::to_string(Book->entry[pos].draws));
+//        Book->entry[pos].game_ids->clear();
+//        Book->entry[pos].moves->clear();
+//    }
     //            batch.Clear();
     book_clear();
 
@@ -446,14 +455,48 @@ static void book_insert(const char file_name[], const char leveldb_file_name[]) 
 
                 //            if (leveldb_file_name==NULL) {
 
-                pos = find_entry(board);
+//                pos = find_entry(board);
+//                entry_t* entry;
+                
+//                = new entry_t;
+//                if openingBook[]
+                        
+                if(openingBook.find(board->key) == openingBook.end()) {
+                    /*it doesn't exist in my_map*/
+                    entry_t* e = new entry_t;
+                    e->moves = new set<uint16>();
+                    e->game_ids = new set<int>();
+                            
+                           
+                    openingBook[board->key] = *e;
+//                    openingBook.insert(std::make_pair( board->key, new entry_t));
+                }
+                
+//                entry_t *&entry = openingBook[board->key];
+//                if (!entry) {
+//                    entry = new entry_t;        
+//                }
 
-                Book->entry[pos].n++;
-                Book->entry[pos].white_score += result;
-                Book->entry[pos].draws += draw;
+                openingBook[board->key].n++;
 
-                Book->entry[pos].moves->insert((const unsigned short &) move);
-                Book->entry[pos].game_ids->insert(game_nb);
+                openingBook[board->key].white_score += result;
+                openingBook[board->key].draws += draw;
+                openingBook[board->key].moves->insert(move);
+//                cout << "Insered game ids\n";
+
+                openingBook[board->key].game_ids->insert(game_nb);
+//                openingBook[board->key].n++;
+//                openingBook[board->key].white_score += result;
+//                openingBook[board->key].draws += draw;
+//                openingBook[board->key].moves->insert((const unsigned short &) move);
+//                openingBook[board->key].game_ids->insert(game_nb);
+
+//                Book->entry[pos].n++;
+//                Book->entry[pos].white_score += result;
+//                Book->entry[pos].draws += draw;
+//
+//                Book->entry[pos].moves->insert((const unsigned short &) move);
+//                Book->entry[pos].game_ids->insert(game_nb);
 
                 move_do(board, move);
                 ply++;
@@ -600,6 +643,8 @@ static int find_entry(const board_t * board) {
     key = board->key;
 
     // search
+    
+//    openingBook[key];
 
     //  if (Storage==POLYGLOT) {
     for (index = (int) (key & Book->mask); (pos = Book->hash[index]) != NIL; index = (index + 1) & Book->mask) {
