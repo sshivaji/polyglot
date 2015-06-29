@@ -310,8 +310,8 @@ static void insert_into_leveldb(leveldb::DB* db, int passNumber) {
         batch.Put(std::to_string(Book->entry[pos].key) + "_freq_p_"+std::to_string(passNumber), std::to_string(Book->entry[pos].n));
         batch.Put(std::to_string(Book->entry[pos].key) + "_white_score_p_"+std::to_string(passNumber), std::to_string(Book->entry[pos].white_score));
         batch.Put(std::to_string(Book->entry[pos].key) + "_draws_p_"+std::to_string(passNumber), std::to_string(Book->entry[pos].draws));
-
-
+        Book->entry[pos].game_ids->clear();
+        Book->entry[pos].moves->clear();
     }
     //            batch.Clear();
     book_clear();
