@@ -250,6 +250,12 @@ static void book_clear() {
     //      leveldb::DB::Open(options, bin_file, &BookLevelDb);
     //    }
     //  else {
+
+    if (Book->size != 0) {
+        std::free(Book->entry);
+        std::free(Book->hash);
+    }
+
     int index;
 
     Book->alloc = 1;
@@ -262,7 +268,6 @@ static void book_clear() {
     for (index = 0; index < Book->alloc * 2; index++) {
         Book->hash[index] = NIL;
     }
-    //    }
 }
 
 
@@ -284,26 +289,11 @@ static void insert_into_leveldb(leveldb::DB* db, int passNumber) {
         
         std::stringstream game_id_stream;
         std::string currentValue;
-//        leveldb::Status s = db->Get(readOptions, std::to_string(Book->entry[pos].key), &currentValue);
-//        if (s.ok()) {
-//            game_id_stream << currentValue;
-//        }
-                
+
         for (set<int>::iterator it = Book->entry[pos].game_ids->begin(); it != Book->entry[pos].game_ids->end(); ++it) {
             game_id_stream << *it << ",";
         }
 
-//        s = db->Get(readOptions, std::to_string(Book->entry[pos].key) + "_moves", &currentValue);
-//        if (s.ok()) {
-            //                    cout << "OK..";
-            //                    cout << currentValue;
-//            std::istringstream ss(currentValue);
-//            std::string token;
-
-//            while (std::getline(ss, token, ',')) {
-//                Book->entry[pos].moves->insert(std::stoi(token));
-//            }
-//        }
 
         std::stringstream move_stream;
         for (set<uint16>::iterator it = Book->entry[pos].moves->begin(); it != Book->entry[pos].moves->end(); ++it) {
@@ -313,28 +303,6 @@ static void insert_into_leveldb(leveldb::DB* db, int passNumber) {
         batch.Put(std::to_string(Book->entry[pos].key)+"_p_"+std::to_string(passNumber), game_id_stream.str());
         batch.Put(std::to_string(Book->entry[pos].key) + "_moves_p_"+std::to_string(passNumber), move_stream.str());
 
-//        s = db->Get(readOptions, std::to_string(Book->entry[pos].key) + "_freq", &currentValue);
-//        if (s.ok()) {
-//            Book->entry[pos].n += std::stoi(currentValue);
-//        }
-//
-//        s = db->Get(readOptions, std::to_string(Book->entry[pos].key) + "_white_score", &currentValue);
-//        if (s.ok()) {
-////                        cout << "White score : "<<Book->entry[pos].white_score << "\n";
-////                        cout << "Current Value White Score: " << currentValue << "\n";
-//
-//            Book->entry[pos].white_score += std::stoi(currentValue);
-//        }
-//
-//        s = db->Get(readOptions, std::to_string(Book->entry[pos].key) + "_draws", &currentValue);
-//        if (s.ok()) {
-////                        cout << "Current Value DRAWS: " << currentValue << "\n";
-//
-//            Book->entry[pos].draws += std::stoi(currentValue);
-//        }
-
-//                    setCounters.add((std::to_string(Book->entry[pos].key)), game_id_stream.str());
-//                    
 //                    counters.add((std::to_string(Book->entry[pos].key) + "_freq"), Book->entry[pos].n);
 //                    counters.add((std::to_string(Book->entry[pos].key) + "_white_score"), Book->entry[pos].white_score);
 //                    counters.add((std::to_string(Book->entry[pos].key) + "_draws"), Book->entry[pos].draws);
@@ -342,6 +310,7 @@ static void insert_into_leveldb(leveldb::DB* db, int passNumber) {
         batch.Put(std::to_string(Book->entry[pos].key) + "_freq_p_"+std::to_string(passNumber), std::to_string(Book->entry[pos].n));
         batch.Put(std::to_string(Book->entry[pos].key) + "_white_score_p_"+std::to_string(passNumber), std::to_string(Book->entry[pos].white_score));
         batch.Put(std::to_string(Book->entry[pos].key) + "_draws_p_"+std::to_string(passNumber), std::to_string(Book->entry[pos].draws));
+
 
     }
     //            batch.Clear();
@@ -364,6 +333,7 @@ static void book_insert(const char file_name[], const char leveldb_file_name[]) 
     int move;
     int pos;
     int passNumber = 0;
+    int numSkippedGames = 0;
     leveldb::WriteOptions writeOptions;
 
     leveldb::DB* db;
@@ -436,6 +406,7 @@ static void book_insert(const char file_name[], const char leveldb_file_name[]) 
                 if ((WhiteElo < MinElo) || (BlackElo < MinElo)) {
 //                    cout << "Skipping game..";
                     skipGame = true;
+                    ++numSkippedGames;
                 }
 
             }
@@ -493,7 +464,7 @@ static void book_insert(const char file_name[], const char leveldb_file_name[]) 
         game_nb++;
         if (game_nb % 10000 == 0) {
             printf("%d games ...\n", game_nb);
-
+            printf("Skipped %d  games...\n", numSkippedGames);
         }
 
         if (game_nb % NumBatchGames == 0) {
@@ -701,7 +672,7 @@ static void resize() {
     size += Book->alloc * sizeof (entry_t);
     size += (Book->alloc * 2) * sizeof (sint32);
 
-    if (size >= 1048576) printf("\nallocating %gMB ...\n", double(size) / 1048576.0);
+    if (size >= 1048576) printf("allocating %gMB ...\n", double(size) / 1048576.0);
 
     // resize arrays
 

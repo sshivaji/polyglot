@@ -95,27 +95,27 @@ int my_round(double x) {
 
 void * my_malloc(int size) {
 
-   void * address;
+//   void * address;
+//
+//   ASSERT(size>0);
+//
+//   address = malloc(size);
+//   if (address == NULL) my_fatal("my_malloc(): malloc(): %s\n",strerror(errno));
 
-   ASSERT(size>0);
-
-   address = malloc(size);
-   if (address == NULL) my_fatal("my_malloc(): malloc(): %s\n",strerror(errno));
-
-   return address;
+   return std::malloc((size_t) size);
 }
 
 // my_realloc()
 
 void * my_realloc(void * address, int size) {
 
-   ASSERT(address!=NULL);
-   ASSERT(size>0);
+//   ASSERT(address!=NULL);
+//   ASSERT(size>0);
+//
+//   address = realloc(address,size);
+//   if (address == NULL) my_fatal("my_realloc(): realloc(): %s\n",strerror(errno));
 
-   address = realloc(address,size);
-   if (address == NULL) my_fatal("my_realloc(): realloc(): %s\n",strerror(errno));
-
-   return address;
+   return std::realloc(address, (size_t) size);
 }
 
 // my_free()
