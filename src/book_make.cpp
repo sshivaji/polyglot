@@ -286,7 +286,38 @@ static void insert_into_leveldb(leveldb::DB* db, int passNumber) {
     
     for(auto const &it : openingBook) {
 //        cout << "key: "<< it.first;
-    
+        
+        const entry_t e = it.second;
+        
+        
+        std::stringstream game_id_stream;
+        std::string currentValue;
+
+        for (set<int>::iterator it = e.game_ids->begin(); it != e.game_ids->end(); ++it) {
+            game_id_stream << *it << ",";
+        }
+
+
+        std::stringstream move_stream;
+        for (set<uint16>::iterator it = e.moves->begin(); it != e.moves->end(); ++it) {
+            move_stream << *it << ",";
+        }
+
+        batch.Put(std::to_string(it.first)+"_p_"+std::to_string(passNumber), game_id_stream.str());
+        batch.Put(std::to_string(it.first) + "_moves_p_"+std::to_string(passNumber), move_stream.str());
+
+//                    counters.add((std::to_string(Book->entry[pos].key) + "_freq"), Book->entry[pos].n);
+//                    counters.add((std::to_string(Book->entry[pos].key) + "_white_score"), Book->entry[pos].white_score);
+//                    counters.add((std::to_string(Book->entry[pos].key) + "_draws"), Book->entry[pos].draws);
+//                    
+        batch.Put(std::to_string(it.first) + "_freq_p_"+std::to_string(passNumber), std::to_string(e.n));
+        batch.Put(std::to_string(it.first) + "_white_score_p_"+std::to_string(passNumber), std::to_string(e.white_score));
+        batch.Put(std::to_string(it.first) + "_draws_p_"+std::to_string(passNumber), std::to_string(e.draws));
+        
+        e.game_ids->clear(); 
+        delete(e.game_ids);
+        e.moves->clear();
+        delete(e.moves);
     }
 
 //    for (int pos = 0; pos < Book->size; pos++) {
@@ -463,12 +494,14 @@ static void book_insert(const char file_name[], const char leveldb_file_name[]) 
                         
                 if(openingBook.find(board->key) == openingBook.end()) {
                     /*it doesn't exist in my_map*/
-                    entry_t* e = new entry_t;
-                    e->moves = new set<uint16>();
-                    e->game_ids = new set<int>();
+//                    entry_t* e = new entry_t;
+                    entry_t e;
+
+                    e.moves = new set<uint16>();
+                    e.game_ids = new set<int>();
                             
                            
-                    openingBook[board->key] = *e;
+                    openingBook[board->key] = e;
 //                    openingBook.insert(std::make_pair( board->key, new entry_t));
                 }
                 
@@ -507,7 +540,9 @@ static void book_insert(const char file_name[], const char leveldb_file_name[]) 
         game_nb++;
         if (game_nb % 10000 == 0) {
             printf("%d games ...\n", game_nb);
-            printf("Skipped %d  games...\n", numSkippedGames);
+            if (numSkippedGames > 0) {
+                printf("Skipped %d  games...\n", numSkippedGames);
+            }
         }
 
         if (game_nb % NumBatchGames == 0) {
@@ -522,9 +557,9 @@ static void book_insert(const char file_name[], const char leveldb_file_name[]) 
 
     printf("%d game%s.\n", game_nb + 1, (game_nb > 1) ? "s" : "");
     if (leveldb_file_name == NULL) {
-        printf("%d entries.\n", Book->size);
+        printf("%lu entries.\n", openingBook.size());
     } else {
-        printf("%d entries.\n", Book->size);
+        printf("%lu entries.\n", openingBook.size());
         insert_into_leveldb(db, passNumber);
         db->Put(writeOptions, "total_game_count", std::to_string(game_nb + 1));
         db->Put(writeOptions, "pgn_filename", file_name);
