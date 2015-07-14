@@ -353,8 +353,10 @@ static void book_insert(const char file_name[], const char leveldb_file_name[]) 
             catch (const std::exception& ex) {
                 WhiteElo = MinElo;
                 BlackElo = MinElo;
-                //cout << ex.what() << "\n";
-//                cout << "Exception\n ";
+            }
+            catch (const std::invalid_argument& ex) {
+                WhiteElo = MinElo;
+                BlackElo = MinElo;
             }
 
             game_info << "|" << pgn->black;

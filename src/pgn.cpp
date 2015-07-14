@@ -104,9 +104,9 @@ bool pgn_next_game(pgn_t * pgn) {
 
    strcpy(pgn->result,"*");
    strcpy(pgn->white,"*");
-   strcpy(pgn->whiteelo,"*");
+   strcpy(pgn->whiteelo,"0");
    strcpy(pgn->black,"*");
-   strcpy(pgn->blackelo,"*");
+   strcpy(pgn->blackelo,"0");
    strcpy(pgn->date,"*");
    strcpy(pgn->event,"*");
    strcpy(pgn->site,"*");
