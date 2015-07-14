@@ -350,11 +350,11 @@ static void book_insert(const char file_name[], const char leveldb_file_name[]) 
                 }
 
             }
-            catch (const std::exception& ex) {
+            catch (const std::invalid_argument& ex) {
                 WhiteElo = MinElo;
                 BlackElo = MinElo;
             }
-            catch (const std::invalid_argument& ex) {
+            catch (const std::exception& ex) {
                 WhiteElo = MinElo;
                 BlackElo = MinElo;
             }
