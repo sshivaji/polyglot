@@ -36,9 +36,9 @@ static const int NIL = -1;
 struct entry_t {
     uint64 key;
     //   uint16 move;
-    int n;
-    int white_score;
-    int draws;
+    int n = 0;
+    int white_score = 0;
+    int draws = 0;
 
     uint16 colour;
     set<int> * game_ids;
