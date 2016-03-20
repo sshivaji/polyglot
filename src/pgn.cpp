@@ -19,7 +19,7 @@ static const bool DispChar = false;
 
 static const int TAB_SIZE = 8;
 
-static const int CHAR_EOF = 256;
+static const int CHAR_EOF = 1000;
 
 // types
 
